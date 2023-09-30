@@ -384,147 +384,6 @@ receive_header:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
-read_rest_of_header:
-
-    read_rest_of_header.read_next_line:
-
-        call read_next_header_line
-
-        mov rdx, 0
-        mov dl, [header_line.len]
-        print header_line, rdx
-
-        cmp [header_line.len], 0
-        je read_rest_of_header.return
-
-
-        extract_header_field \
-            str_header_line_multipart_boundary, \
-            str_header_line_multipart_boundary.size, \
-            header_line, \
-            [header_line.len], \
-            multipart_boundary, \
-            [multipart_boundary.len], \
-            read_rest_of_header.not_foud_multipart_boundart
-        read_rest_of_header.not_foud_multipart_boundart:
-        
-
-        extract_header_field \
-            str_header_line_file_upload_filename, \
-            str_header_line_file_upload_filename.size, \
-            header_line, \
-            [header_line.len], \
-            file_upload_filename, \ ; we're keeping the first and the last `"` on purpose
-            [file_upload_filename.len], \
-            read_rest_of_header.not_found_file_upload_filename
-
-            ; if it has been found remove the last character (it's a `"`)
-            cmp [file_upload_filename.len], 0
-            je read_rest_of_header.not_found_file_upload_filename
-
-            mov rax, file_upload_filename
-            .replace_bad_characters: ; HTML is retarded since it switches some of the characters for some retarded codes
-                                     ; we are going to avoid this altogether by replacing the bad characters beforehand
-                
-                cmp byte [rax], 0 ; end of string
-                je .bad_chars_replaced
-
-                ; replace ` ` with `_`
-                cmp byte [rax], ' '
-                je .replace_this_char
-                
-                cmp byte [rax], '"'
-                je .replace_this_char
-
-                cmp byte [rax], "'"
-                je .replace_this_char
-
-                jmp .char_replace_done
-                .replace_this_char:
-                    mov byte [rax], '_'
-                .char_replace_done:
-
-                inc rax
-
-            jmp .replace_bad_characters
-            .bad_chars_replaced:
-
-
-            dec [file_upload_filename.len]
-
-        read_rest_of_header.not_found_file_upload_filename:
-
-    jmp read_rest_of_header.read_next_line
-    
-    read_rest_of_header.return:
-    ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;; fnc
-
-read_next_header_line:
-    
-    mov rax, header_line
-    push rax
-
-    mov [header_line.len], 0
-
-    sys_read [connfd], tmp_1B_a, tmp_1B_a.size
-    
-    read_next_header_line.loop:
-
-        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
-
-        cmp [tmp_1B_b], 10 ; \n
-        jne read_next_header_line.read_next_byte
-        cmp [tmp_1B_a], 13 ; \r
-        jne read_next_header_line.read_next_byte
-
-        jmp read_next_header_line.line_done
-
-        read_next_header_line.read_next_byte:
-
-        pop rax
-        mov cl, [tmp_1B_a]
-        mov [rax], cl
-        inc rax
-        push rax
-
-        inc [header_line.len]
-
-        cmp [header_line.len], HEADER_LINE_MAXLEN
-        je read_next_header_line.cut_until_end_of_line
-
-        mov al, [tmp_1B_b]
-        mov [tmp_1B_a], al
-
-    jmp read_next_header_line.loop
-    
-    read_next_header_line.cut_until_end_of_line:
-
-        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
-
-        cmp [tmp_1B_b], 10 ; \n
-        jne read_next_header_line.discard_next_byte
-        cmp [tmp_1B_a], 13 ; \r
-        jne read_next_header_line.discard_next_byte
-
-        jmp read_next_header_line.line_done
-
-        read_next_header_line.discard_next_byte:
-
-        mov al, [tmp_1B_b]
-        mov [tmp_1B_a], al
-
-    jmp read_next_header_line.cut_until_end_of_line
-
-    read_next_header_line.line_done:
-
-    pop rax
-
-    ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;; fnc
-
 handle_request:
 
     sys_write [connfd], str_http_header_begin, str_http_header_begin.size
@@ -804,6 +663,147 @@ handle_script_file_download:
     sys_sendfile [connfd], [file_send_upload_fd], 0, [tmp_8B]
 
     sys_close [file_send_upload_fd]
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+read_rest_of_header:
+
+    read_rest_of_header.read_next_line:
+
+        call read_next_header_line
+
+        mov rdx, 0
+        mov dl, [header_line.len]
+        print header_line, rdx
+
+        cmp [header_line.len], 0
+        je read_rest_of_header.return
+
+
+        extract_header_field \
+            str_header_line_multipart_boundary, \
+            str_header_line_multipart_boundary.size, \
+            header_line, \
+            [header_line.len], \
+            multipart_boundary, \
+            [multipart_boundary.len], \
+            read_rest_of_header.not_foud_multipart_boundart
+        read_rest_of_header.not_foud_multipart_boundart:
+        
+
+        extract_header_field \
+            str_header_line_file_upload_filename, \
+            str_header_line_file_upload_filename.size, \
+            header_line, \
+            [header_line.len], \
+            file_upload_filename, \ ; we're keeping the first and the last `"` on purpose
+            [file_upload_filename.len], \
+            read_rest_of_header.not_found_file_upload_filename
+
+            ; if it has been found remove the last character (it's a `"`)
+            cmp [file_upload_filename.len], 0
+            je read_rest_of_header.not_found_file_upload_filename
+
+            mov rax, file_upload_filename
+            .replace_bad_characters: ; HTML is retarded since it switches some of the characters for some retarded codes
+                                     ; we are going to avoid this altogether by replacing the bad characters beforehand
+                
+                cmp byte [rax], 0 ; end of string
+                je .bad_chars_replaced
+
+                ; replace ` ` with `_`
+                cmp byte [rax], ' '
+                je .replace_this_char
+                
+                cmp byte [rax], '"'
+                je .replace_this_char
+
+                cmp byte [rax], "'"
+                je .replace_this_char
+
+                jmp .char_replace_done
+                .replace_this_char:
+                    mov byte [rax], '_'
+                .char_replace_done:
+
+                inc rax
+
+            jmp .replace_bad_characters
+            .bad_chars_replaced:
+
+
+            dec [file_upload_filename.len]
+
+        read_rest_of_header.not_found_file_upload_filename:
+
+    jmp read_rest_of_header.read_next_line
+    
+    read_rest_of_header.return:
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+read_next_header_line:
+    
+    mov rax, header_line
+    push rax
+
+    mov [header_line.len], 0
+
+    sys_read [connfd], tmp_1B_a, tmp_1B_a.size
+    
+    read_next_header_line.loop:
+
+        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+
+        cmp [tmp_1B_b], 10 ; \n
+        jne read_next_header_line.read_next_byte
+        cmp [tmp_1B_a], 13 ; \r
+        jne read_next_header_line.read_next_byte
+
+        jmp read_next_header_line.line_done
+
+        read_next_header_line.read_next_byte:
+
+        pop rax
+        mov cl, [tmp_1B_a]
+        mov [rax], cl
+        inc rax
+        push rax
+
+        inc [header_line.len]
+
+        cmp [header_line.len], HEADER_LINE_MAXLEN
+        je read_next_header_line.cut_until_end_of_line
+
+        mov al, [tmp_1B_b]
+        mov [tmp_1B_a], al
+
+    jmp read_next_header_line.loop
+    
+    read_next_header_line.cut_until_end_of_line:
+
+        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+
+        cmp [tmp_1B_b], 10 ; \n
+        jne read_next_header_line.discard_next_byte
+        cmp [tmp_1B_a], 13 ; \r
+        jne read_next_header_line.discard_next_byte
+
+        jmp read_next_header_line.line_done
+
+        read_next_header_line.discard_next_byte:
+
+        mov al, [tmp_1B_b]
+        mov [tmp_1B_a], al
+
+    jmp read_next_header_line.cut_until_end_of_line
+
+    read_next_header_line.line_done:
+
+    pop rax
 
     ret
 

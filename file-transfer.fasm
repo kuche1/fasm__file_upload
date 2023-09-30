@@ -19,6 +19,8 @@
 ; use a giant buffer for network recv and operate on that buffer instead of making syscalls all the time
 ;
 ; add an "uploading..." message on the upload page
+;
+; accept port as command line arg
 
 ; info
 ;
@@ -83,6 +85,7 @@ URL_MAXLEN equ 128 ; in bytes
 HEADER_LINE_MAXLEN equ 128 ; in bytes ; TODO currently this is not long enough for the cookies line
 FILE_UPLOAD_TIMEOUT_SEC equ 0
 FILE_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
+FILE_RECV_BUF equ 32 ; in bytes ; this dramatically affects client upload speed
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: idkman
 
@@ -583,14 +586,13 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop:
 
-        ; TODO this can be improved by using a bigger buffer; make a dediacated variable for this
-        sys_read [connfd], tmp_8B, tmp_8B.size
+        sys_read [connfd], file_recv_buf, file_recv_buf.size
         cmp rax, 0
         jle handle_script_file_upload.copy_to_file_loop_done
 
-        ; sys_write [file_send_upload_fd], tmp_8B, tmp_8B.size
+        ; sys_write [file_send_upload_fd], file_recv_buf, file_recv_buf.size
         mov rdx, rax
-        sys_write [file_send_upload_fd], tmp_8B, rdx
+        sys_write [file_send_upload_fd], file_recv_buf, rdx
     
     jmp handle_script_file_upload.copy_to_file_loop
 
@@ -974,6 +976,10 @@ file_send_upload_fd dq 0
 folder_uploaded_files db "/tmp/file-transfer-uploaded-files", 0
 folder_uploaded_files.size = $ - folder_uploaded_files
 folder_uploaded_files_fd dq 0
+
+file_recv_buf rb FILE_RECV_BUF
+file_recv_buf.size = $ - file_recv_buf
+
 
 ; struct timeval {
 ;    time_t      tv_sec;   // Number of whole seconds of elapsed time

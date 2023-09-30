@@ -387,7 +387,8 @@ receive_header:
 
 handle_request:
 
-    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    cmp [url.len], 1
+    je .requested_page_main
 
     mov rax, url
     inc rax ; skip past the `/`
@@ -404,7 +405,11 @@ handle_request:
     cmp byte [rax], '5'
     je .requested_script_file_download
 
-    jmp .requested_page_main
+    jmp .requested_page_404
+
+    .requested_page_main:
+        call handle_page_main
+        jmp .return
 
     .requested_page_download:
         call handle_page_download
@@ -422,8 +427,8 @@ handle_request:
         call handle_script_file_download
         jmp .return
 
-    .requested_page_main:
-        call handle_page_main
+    .requested_page_404:
+        call handle_page_404
         jmp .return
 
     .return:
@@ -432,6 +437,7 @@ handle_request:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_page_main:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_end, str_http_header_end.size
     sys_write [connfd], str_html_page_main, str_html_page_main.size
     ret
@@ -439,6 +445,7 @@ handle_page_main:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_page_download:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_end, str_http_header_end.size
 
     send_html_page_download_begin [connfd]
@@ -545,6 +552,7 @@ handle_page_download:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_page_upload:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_end, str_http_header_end.size
     sys_write [connfd], str_html_page_upload, str_html_page_upload.size
     ret
@@ -552,6 +560,7 @@ handle_page_upload:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_script_file_upload:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_end, str_http_header_end.size
 
     call read_rest_of_header
@@ -626,7 +635,7 @@ handle_script_file_upload:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_script_file_download:
-
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_attachment_begin, str_http_header_attachment_begin.size
 
     ; save file len
@@ -665,6 +674,16 @@ handle_script_file_download:
     sys_close [file_send_upload_fd]
 
     ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_page_404:
+    sys_write [connfd], str_http_header_begin_404, str_http_header_begin_404.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    sys_write [connfd], str_html_page_404, str_html_page_404.size
+
+    ret 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
@@ -848,19 +867,20 @@ str_warn_folder_existance db "please make sure that the following folder exists:
 str_warn_folder_existance.size = $ - str_warn_folder_existance
 
 
-; not ideal but why not; avoid some complexity for now
 str_http_header_begin db "HTTP/1.1 200 OK", 13, 10
 ;                      db "Content-Type: text/html; charset=utf-8", 13, 10 ; this seems cool but it fucks with the file upload
                       db "Connection: close", 13, 10
 str_http_header_begin.size = $ - str_http_header_begin
 
+str_http_header_begin_404 db "HTTP/1.1 404 Not Found", 13, 10
+                          db "Connection: close", 13, 10
+str_http_header_begin_404.size = $ - str_http_header_begin_404
 
-str_http_header_attachment_begin db 'Content-disposition: attachment; filename='
-str_http_header_attachment_begin.size = $ - str_http_header_attachment_begin
+    str_http_header_attachment_begin db 'Content-disposition: attachment; filename='
+    str_http_header_attachment_begin.size = $ - str_http_header_attachment_begin
 
-str_http_header_attachment_end db '"', 13, 10
-str_http_header_attachment_end.size = $ - str_http_header_attachment_end
-
+    str_http_header_attachment_end db '"', 13, 10
+    str_http_header_attachment_end.size = $ - str_http_header_attachment_end
 
 str_http_header_end db 13, 10
 str_http_header_end.size = $ - str_http_header_end
@@ -897,6 +917,10 @@ str_html_page_download_begin.size = $ - str_html_page_download_begin
 
 str_html_page_download_end db "</html>", 10
 str_html_page_download_end.size = $ - str_html_page_download_end
+
+
+str_html_page_404 db "404", 10
+str_html_page_404.size = $ - str_html_page_404
 
 
 str_html_page_upload db "<!DOCTYPE html>", 10    

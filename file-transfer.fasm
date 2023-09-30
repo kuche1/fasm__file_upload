@@ -405,7 +405,8 @@ handle_request:
     cmp byte [rax], '5'
     je .requested_script_file_download
 
-    jmp .requested_page_404
+    ; jmp .requested_page_404
+    jmp .requested_custom_page
 
     .requested_page_main:
         call handle_page_main
@@ -429,6 +430,10 @@ handle_request:
 
     .requested_page_404:
         call handle_page_404
+        jmp .return
+
+    .requested_custom_page:
+        call handle_custom_page
         jmp .return
 
     .return:
@@ -683,7 +688,49 @@ handle_page_404:
 
     sys_write [connfd], str_html_page_404, str_html_page_404.size
 
-    ret 
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_custom_page:
+    mov rdi, url
+    inc rdi ; skip the `/`
+
+    mov rsi, O_RDONLY
+
+    ; mov rdx, S_IRUSR
+    ; or rdx, S_IWUSR
+    ; or rdx, S_IRGRP
+    ; or rdx, S_IROTH
+    mov rdx, 0
+
+    sys_open rdi, rsi, rdx
+    mov [tmp_fd], rax
+    cmp rax, 0
+    jge .file_exists
+        ; file doesn't exist
+        call handle_page_404
+        jmp .return
+    .file_exists:
+
+    ; send headers
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    ; get file size
+    sys_lseek [tmp_fd], 0, SEEK_END
+    mov [tmp_8B], rax
+
+    ; go back to the start
+    sys_lseek [tmp_fd], 0, SEEK_SET
+
+    ; TODO call this in a loop
+    sys_sendfile [connfd], [tmp_fd], 0, [tmp_8B]
+
+    sys_close [tmp_fd]
+
+    .return:
+    ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
@@ -855,6 +902,8 @@ tmp_8B.size = $ - tmp_8B
 
 tmp_8B_a 8B 0
 tmp_8B_a.size = $ - tmp_8B_a
+
+tmp_fd dq 0
 
 ;;;;;;;;;;;;;; other data
 

@@ -434,8 +434,33 @@ handle_request:
     jmp .requested_custom_page
 
     .requested_page_main:
-        call handle_page_main
-        jmp .return
+        ; this is idiotic
+        mov rax, url
+        mov byte [rax], '/'
+        inc rax
+        mov byte [rax], 'i'
+        inc rax
+        mov byte [rax], 'n'
+        inc rax
+        mov byte [rax], 'd'
+        inc rax
+        mov byte [rax], 'e'
+        inc rax
+        mov byte [rax], 'x'
+        inc rax
+        mov byte [rax], '.'
+        inc rax
+        mov byte [rax], 'h'
+        inc rax
+        mov byte [rax], 't'
+        inc rax
+        mov byte [rax], 'm'
+        inc rax
+        mov byte [rax], 'l'
+        inc rax
+        mov byte [rax], 0
+        mov [url.len], 11
+        jmp handle_request
 
     .requested_page_download:
         call handle_page_download
@@ -458,14 +483,6 @@ handle_request:
         jmp .return
 
     .return:
-    ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;; fnc
-
-handle_page_main:
-    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
-    sys_write [connfd], str_http_header_end, str_http_header_end.size
-    sys_write [connfd], str_html_page_main, str_html_page_main.size
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
@@ -931,20 +948,6 @@ str_http_header_begin_404.size = $ - str_http_header_begin_404
 
 str_http_header_end db 13, 10
 str_http_header_end.size = $ - str_http_header_end
-
-
-str_html_page_main db "<!DOCTYPE html>", 10
-                   db "<html>", 10
-                   db "  <head>", 10
-                   db "    <title>asdasdsdafcstgcreztre</title>", 10
-                   db "  </head>", 10
-                   db "  <body>", 10
-                   db '    <a href="/upload.html" target="_blank">file upload</a>', 10
-                   db "    <br>", 10
-                   db '    <a href="/3" target="_blank">file download</a>', 10
-                   db "  </body>", 10
-                   db "</html>", 10
-str_html_page_main.size = $ - str_html_page_main
 
 
 str_html_page_download_begin db "<!DOCTYPE html>", 10

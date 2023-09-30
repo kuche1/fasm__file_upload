@@ -421,9 +421,6 @@ handle_request:
     mov rax, url
     inc rax ; skip past the `/`
 
-    cmp byte [rax], '2'
-    je .requested_page_upload
-
     cmp byte [rax], '3'
     je .requested_page_download
 
@@ -442,10 +439,6 @@ handle_request:
 
     .requested_page_download:
         call handle_page_download
-        jmp .return
-
-    .requested_page_upload:
-        call handle_page_upload
         jmp .return
     
     .requested_script_file_upload:
@@ -565,14 +558,6 @@ handle_page_download:
 
     send_html_page_download_end [connfd]
 
-    ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;; fnc
-
-handle_page_upload:
-    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
-    sys_write [connfd], str_http_header_end, str_http_header_end.size
-    sys_write [connfd], str_html_page_upload, str_html_page_upload.size
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
@@ -954,7 +939,7 @@ str_html_page_main db "<!DOCTYPE html>", 10
                    db "    <title>asdasdsdafcstgcreztre</title>", 10
                    db "  </head>", 10
                    db "  <body>", 10
-                   db '    <a href="/2" target="_blank">file upload</a>', 10
+                   db '    <a href="/upload.html" target="_blank">file upload</a>', 10
                    db "    <br>", 10
                    db '    <a href="/3" target="_blank">file download</a>', 10
                    db "  </body>", 10
@@ -984,16 +969,6 @@ str_html_page_download_end.size = $ - str_html_page_download_end
 str_html_page_404 db "404", 10
 str_html_page_404.size = $ - str_html_page_404
 
-
-str_html_page_upload db "<!DOCTYPE html>", 10    
-    db "<html>", 10
-    db '<form action="/4" method="post" enctype="multipart/form-data">', 10
-    db '  <label for="file">File</label>', 10
-    db '  <input id="file" name="file" type="file" />', 10
-    db "  <button>Upload</button>", 10
-    db "</form>", 10
-    db "</html>", 10
-str_html_page_upload.size = $ - str_html_page_upload
 
 str_header_line_multipart_boundary db "Content-Type: multipart/form-data; boundary="
 str_header_line_multipart_boundary.size = $ - str_header_line_multipart_boundary

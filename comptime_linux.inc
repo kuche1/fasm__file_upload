@@ -24,6 +24,7 @@ SYSCALL_EXIT equ 60
 SYSCALL_FTRUNCATE equ 77
 SYSCALL_GETDENTS equ 78
 SYSCALL_CHDIR equ 80
+SYSCALL_OPENAT equ 257
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; comtime constants: files
 
@@ -144,6 +145,10 @@ macro sys_lseek fd, offset, whence {
 
 macro sys_open file_name, flags, mode {
     sys3 SYSCALL_OPEN, file_name, flags, mode
+}
+
+macro sys_openat folder_fd, file_name, flags, mode {
+    sys4 SYSCALL_OPENAT, folder_fd, file_name, flags, mode
 }
 
 macro sys_read fd, buf, size {

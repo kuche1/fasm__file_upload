@@ -573,6 +573,8 @@ handle_page_download:
     jmp .get_dir_entries
     .no_more_dir_entries:
 
+    sys_lseek [folder_uploaded_files_fd], 0, SEEK_SET ; reset folder state
+
     send_html_page_download_end [connfd]
 
     ret

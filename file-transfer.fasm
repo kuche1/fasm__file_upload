@@ -1,0 +1,1213 @@
+
+; fasm file-transfer.fasm && chmod +x file-transfer && ./file-transfer
+
+; TODO
+;
+; non-blocking IO and check ret code (checking ret code might turn out to not be a great idea)
+;
+; use `openat` instead of switching CWD
+;
+; make it so that having `"` in the file name doesn't fuck over the HTML
+;
+; use `jle` instead of `je` when comparing lengths
+;
+; create the `/tmp/...` folder
+;
+; check command-line args
+;
+; make macros hygenic (as in the push/pop their own registers)
+; or go tell the caller to fuck off
+;
+; decode URL or filter out special chars in file name
+;
+; use a giant buffer for network recv and operate on that buffer instead of making syscalls all the time
+;
+; add an "uploading..." message on the upload page
+
+; info
+;
+; https://flatassembler.net/docs.php
+; http://bos.asmhackers.net/docs/FASM%20tutorial/preproc.html
+; https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
+; https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
+;
+; registers: https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
+; rax, rbx, rcx, rdx, rsi, rdi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14 (and more)
+;
+; syscalls: https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
+; syscall args go to:
+; arg0(syscall-number)=rax arg1=rdi arg2=rsi arg3=rdx arg4=r10 arg5=r8 arg6=r9
+; (hepefully) all syscall return to `rax`
+;
+; data types: https://flatassembler.net/docs.php?article=manual#1.2.2
+; db - byte - 1 byte
+; dw - word - 2 bytes
+; dd - double word - 4 bytes
+; dq - quad word - 8 bytes
+; you can also reserve data
+; rb - 1 byte
+; rw - 2 bytes
+; rd - 4 bytes
+; rq - 8 bytes
+
+; debug tips
+;
+; omg you get NO SYMBOLS WTF
+; no `main`, no `_start`, nothing
+;
+; run with `strace`
+;
+; `readelf -e <file>` and find the `entry point address`
+; then in `gdb <file>` put a breakpoint on that address `b *0x4000b0`
+; then `run` and `tui enable` and `layout asm`
+; and you will get an asm view
+;
+; less retarded debugger is `gf` executable is called `gf2` https://github.com/nakst/gf
+; again, break on the entry point using `b *0x4000b0`
+; switch to the `registers` tab
+; start with `run`
+; use `ni` for next step
+
+format ELF64 executable
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: data types
+
+1B equ db
+2B equ dw
+4B equ dd
+8B equ dq
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: syscall ids
+;; https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md
+
+SYSCALL_READ equ 0
+SYSCALL_WRITE equ 1
+SYSCALL_OPEN equ 2
+SYSCALL_CLOSE equ 3
+SYSCALL_LSEEK equ 8
+SYSCALL_SENDFILE equ 40
+SYSCALL_SOCKET equ 41
+SYSCALL_ACCEPT equ 43
+SYSCALL_SHUTDOWN equ 48
+SYSCALL_BIND equ 49
+SYSCALL_LISTEN equ 50
+SYSCALL_SETSOCKOPT equ 54
+SYSCALL_FORK equ 57
+SYSCALL_EXIT equ 60
+SYSCALL_FTRUNCATE equ 77
+SYSCALL_GETDENTS equ 78
+SYSCALL_CHDIR equ 80
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: files
+
+FILE_STDIN equ 0
+FILE_STDOUT equ 1
+FILE_STDERR equ 2
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: return codes
+
+RET_CODE_SUCC equ 0
+RET_CODE_FAIL equ 1
+RET_CODE_TCP_SOCKET_FAIL equ 2
+RET_CODE_BIND_FAIL equ 3
+RET_CODE_LISTEN_FAIL equ 4
+;RET_CODE_ACCEPT_FAIL equ 5 ; no longer used
+RET_CODE_SETSOCKOPT_FAIL equ 6
+RET_CODE_CHDIR_FAIL equ 7
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: sockets
+
+SOCKET_DOMAIN_IPV4 equ 2
+SOCKET_TYPE_TCP equ 1
+
+SOL_SOCKET equ 1
+SO_REUSEADDR equ 2
+SO_REUSEPORT equ 15
+SO_RCVTIMEO equ 20
+
+SHUTDOWN_READ equ 0
+SHUTDOWN_WRITE equ 1
+SHUTDOWN_READ_AND_WRITE equ 2
+
+; more flags
+; https://pubs.opengroup.org/onlinepubs/007904875/functions/open.html
+; https://www.geeksforgeeks.org/input-output-system-calls-c-create-open-close-read-write/
+O_RDONLY equ 0
+O_WRONLY equ 1
+O_RDWR equ 2
+O_CREAT equ 64 ; Create a file if it doesn’t exist.
+O_TRUNC equ 512 ; If the file exists and is a regular file, and the file is successfully opened O_RDWR or O_WRONLY, its length shall be truncated to 0, and the mode and owner shall be unchanged. It shall have no effect on FIFO special files or terminal device files. Its effect on other file types is implementation-defined. The result of using O_TRUNC with O_RDONLY is undefined.
+O_DIRECTORY equ 65536 ; used when opening directories (and not files)
+; O_EXCL	Prevent creation if it already exists.
+; O_ APPEND	Opens the file and places the cursor at the end of the contents.
+; O_ASYNC	Enable input and output control by signal.
+; O_CLOEXEC	Enable close-on-exec mode on the open file.
+; O_NONBLOCK	Disables blocking of the file opened.
+; O_TMPFILE	Create an unnamed temporary file at the specified path.
+
+S_IRUSR equ 256
+S_IWUSR equ 128
+S_IRGRP equ 32
+S_IROTH equ 4
+
+SEEK_SET equ 0
+SEEK_CUR equ 1
+SEEK_END equ 2
+
+DT_REG equ 8 ; regular file
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: server parameters
+
+MAX_CONNECTIONS equ 5
+SERVING_THREADS equ 20
+URL_MAXLEN equ 128 ; in bytes
+HEADER_LINE_MAXLEN equ 128 ; in bytes ; TODO currently this is not long enough for the cookies line
+FILE_UPLOAD_TIMEOUT_SEC equ 0
+FILE_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: idkman
+
+METHOD_GET equ 0
+METHOD_POST equ 1
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime variables
+
+;; TODO create lbl_id
+;; then use lbl_id+=1 where called
+
+;;;;;;;;;;;;;;;;;;;;;;;;; macros: syscalls: shorthands
+
+macro sys0 syscall_id
+{
+    mov rax, syscall_id
+    syscall
+}
+
+macro sys1 syscall_id, arg1
+{
+    mov rdi, arg1
+    sys0 syscall_id
+}
+
+macro sys2 syscall_id, arg1, arg2
+{
+    mov rsi, arg2
+    sys1 syscall_id, arg1
+}
+
+
+macro sys3 syscall_id, arg1, arg2, arg3
+{
+    mov rdx, arg3
+    sys2 syscall_id, arg1, arg2
+}
+
+macro sys4 syscall_id, arg1, arg2, arg3, arg4
+{
+    mov r10, arg4
+    sys3 syscall_id, arg1, arg2, arg3
+}
+
+macro sys5 syscall_id, arg1, arg2, arg3, arg4, arg5
+{
+    mov r8, arg5
+    sys4 syscall_id, arg1, arg2, arg3, arg4
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;; macros: syscalls: generic
+
+macro sys_chdir new_cwd {
+    sys1 SYSCALL_CHDIR, new_cwd
+}
+
+macro sys_exit ret_code {
+    sys1 SYSCALL_EXIT, ret_code
+}
+
+macro sys_fork {
+    sys0 SYSCALL_FORK
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;; macros: syscalls: files
+
+macro sys_close fd {
+    sys1 SYSCALL_CLOSE, fd
+}
+
+macro sys_ftruncate fd, length {
+    sys2 SYSCALL_FTRUNCATE, fd, length
+}
+
+macro sys_getdents fd, linux_dirent, linux_dirent_size {
+    sys3 SYSCALL_GETDENTS, fd, linux_dirent, linux_dirent_size
+}
+
+macro sys_lseek fd, offset, whence {
+    sys3 SYSCALL_LSEEK, fd, offset, whence
+}
+
+macro sys_open file_name, flags, mode {
+    sys3 SYSCALL_OPEN, file_name, flags, mode
+}
+
+macro sys_read fd, buf, size {
+    sys3 SYSCALL_READ, fd, buf, size
+}
+
+macro sys_write fd, msg, msg_len {
+    sys3 SYSCALL_WRITE, fd, msg, msg_len
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;; macros: syscalls: networking
+
+macro sys_accept sockfd, addr, addr_len {
+    sys3 SYSCALL_ACCEPT, sockfd, addr, addr_len
+}
+
+macro sys_bind sockfd, addr, addr_len {
+    sys3 SYSCALL_BIND, sockfd, addr, addr_len
+}
+
+macro sys_listen sockfd, max_connections {
+    sys2 SYSCALL_LISTEN, sockfd, max_connections
+}
+
+macro sys_sendfile fd_out, fd_in, offset, count {
+    sys4 SYSCALL_SENDFILE, fd_out, fd_in, offset, count
+}
+
+macro sys_setsockopt fd, level, optname, optval, optlen {
+    sys5 SYSCALL_SETSOCKOPT, fd, level, optname, optval, optlen
+}
+
+macro sys_shutdown socket, how {
+    sys2 SYSCALL_SHUTDOWN, socket, how
+}
+
+macro sys_socket domain, type, protocol {
+    sys3 SYSCALL_SOCKET, domain, type, protocol
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;; macros: other
+
+macro print msg, msg_len {
+    print_nnl msg, msg_len
+    sys_write FILE_STDOUT, str_nl, str_nl_len
+}
+
+macro print_nnl msg, msg_len {
+    sys_write FILE_STDOUT, msg, msg_len
+}
+
+macro create_tcp_socket {
+;; returns: dword eax: sockfd
+    sys_socket SOCKET_DOMAIN_IPV4, SOCKET_TYPE_TCP, 0 ;; only one TCP protocol exists so the last arguments stays at 0
+    cmp rax, 0
+    jge tcp_socket_ok
+        sys_exit RET_CODE_TCP_SOCKET_FAIL
+    tcp_socket_ok: ;; TODO try and use `$` or something similar so that the macro can be used more than once
+}
+
+macro extract_header_field \
+    prefix, \
+    prefix_len, \
+    header_line, \
+    header_line_len, \
+    resulting_data, \
+    resulting_data_len, \
+    label_if_not_found
+{
+
+    local return, found_boundary_line, compare_next_char ; now we can use this macro multiple times
+
+    ; check for the multipart boundary
+
+    mov dl, prefix_len
+    mov dh, header_line_len
+
+    ; received line is too short
+    cmp dh, dl
+    jle label_if_not_found
+
+    ; compare strings
+
+    mov rax, prefix
+    mov rbx, header_line
+
+    compare_next_char:
+
+        cmp dl, 0
+        je found_boundary_line
+
+        ; read char from expected multipart
+        mov cl, [rax]
+        inc rax
+
+        ; read char from received line
+        mov ch, [rbx]
+        inc rbx
+
+        ; see if they're the same
+        cmp cl, ch
+        jne label_if_not_found
+
+        dec dl
+
+    jmp compare_next_char
+
+    found_boundary_line:
+
+        mov rax, resulting_data
+
+        mov dl, prefix_len
+        mov dh, header_line_len
+
+        sub dh, dl
+        mov resulting_data_len, dh
+
+        .copy_boundary:
+
+            cmp dh, 0
+            je return
+
+            ; copy
+            mov ch, [rbx]
+            inc rbx
+
+            mov [rax], ch
+            inc rax
+
+            dec dh
+        
+        jmp .copy_boundary
+
+    return:
+}
+
+macro send_html_page_download_begin sock {
+    sys_write sock, str_html_page_download_begin, str_html_page_download_begin.size
+}
+
+macro send_html_page_download_button sock, filename, filename_len {
+    sys_write sock, str_html_page_download_button_part1, str_html_page_download_button_part1.size
+    sys_write sock, filename, filename_len
+    sys_write sock, str_html_page_download_button_part2, str_html_page_download_button_part2.size
+    sys_write sock, filename, filename_len
+    sys_write sock, str_html_page_download_button_part3, str_html_page_download_button_part3.size
+}
+
+macro send_html_page_download_end sock {
+    sys_write sock, str_html_page_download_end, str_html_page_download_end.size
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;; code section
+
+segment readable executable
+
+entry main
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+main:
+    print str_starting_program, str_starting_program_len
+
+    print_nnl str_warn_folder_existance, str_warn_folder_existance.size
+
+    print folder_uploaded_files, folder_uploaded_files.size
+
+    ; cd into the file upload/download folder right away
+    sys_chdir folder_uploaded_files
+    cmp rax, 0
+    je .chdir_ok
+        ; chdir error
+        sys_exit RET_CODE_CHDIR_FAIL
+    .chdir_ok:
+
+    create_tcp_socket
+    ;; returns: dword eax: sockfd
+
+    mov qword [sockfd], rax
+
+    sys_setsockopt [sockfd], SOL_SOCKET, SO_REUSEPORT, one, sizeof_one
+    cmp rax, 0
+    jge setsockopt_ok
+        sys_exit RET_CODE_SETSOCKOPT_FAIL
+    setsockopt_ok:
+
+    ;; servaddr.sin_family = AF_INET;
+    mov word [servaddr.sin_family], SOCKET_DOMAIN_IPV4
+
+    ;; servaddr.sin_port = htons(PORT);
+    ;;
+    ;; convert endianness by hand
+    ;; 6969 -(to-hex)-> 0x1b39 -(convert-endianness)-> 0x391b -(to-dec)-> 14619
+    mov word [servaddr.sin_port], 14619
+    ;;mov word [servaddr.sin_port], 14875
+
+    ;; servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    ;; INADDR_ANY is 0 therefore I give 0 fucks about endianness
+    mov dword [servaddr.sin_addr], 0
+
+    sys_bind [sockfd], servaddr, servaddr.size
+    cmp rax, 0
+    jz bind_is_ok
+        sys_exit RET_CODE_BIND_FAIL
+    bind_is_ok:
+
+    sys_listen [sockfd], MAX_CONNECTIONS
+    cmp rax, 0
+    jz listen_is_ok ;; ЛИСТЕН ЛИСТЕН
+        sys_exit RET_CODE_LISTEN_FAIL
+    listen_is_ok:
+
+    rept (SERVING_THREADS-1) counter {
+        sys_fork
+        cmp rax, 0
+        jnz is_parent_#counter
+            ;; is child
+            jmp serving_thread
+        is_parent_#counter:
+    }
+
+    jmp serving_thread ; also use main thread to serve
+
+    sys_shutdown [sockfd], SHUTDOWN_READ_AND_WRITE
+    sys_close [sockfd]
+
+    sys_exit RET_CODE_SUCC
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+serving_thread:
+
+    sys_accept [sockfd], cliaddr, cliaddr_size
+    cmp rax, 0
+    jg accept_is_ok
+        ;; client is a piece of shit
+        jmp serving_thread
+    accept_is_ok:
+
+    mov qword [connfd], rax
+
+    call receive_header
+
+    sys_shutdown [connfd], SHUTDOWN_READ_AND_WRITE
+    sys_close [connfd]
+
+    jmp serving_thread
+
+    sys_exit RET_CODE_SUCC
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+receive_header:
+
+    sys_read [connfd], tmp_4B, tmp_4B.size
+
+    ; print tmp_4B, tmp_4B.size
+
+    cmp [tmp_4B], 'G'
+    je method_get ; assume GET
+
+    ; cmp [tmp_4B], 'P'
+    jmp method_post ; assume POST
+
+    method_get:
+        mov [method], METHOD_GET
+        jmp method_finished
+
+    method_post:
+        sys_read [connfd], tmp_1B, tmp_1B.size ; get rid of ` `
+        mov [method], METHOD_POST
+        jmp method_finished
+
+    method_finished:
+
+    mov rcx, url
+    mov [url.len], 0
+
+    receive_next_byte_from_url:
+        push rcx ; TODO stupid
+        sys_read [connfd], tmp_1B, tmp_1B.size
+        pop rcx
+        cmp [tmp_1B], ' '
+        je url_received
+
+        mov al, [tmp_1B]
+        mov [rcx], al
+
+        inc rcx
+        inc [url.len]
+
+        cmp [url.len], URL_MAXLEN
+        je url_received ; TODO idk what the appropriate action is ; TODO terminating the commection is probably better
+
+        jmp receive_next_byte_from_url
+    url_received:
+
+    ; put 0 at the end; don't worry we have enough mem
+    mov byte [rcx], 0
+
+    mov rdx, 0
+    mov dl, [url.len]
+    print url, rdx
+
+    mov [multipart_boundary.len], 0
+    mov [file_upload_filename.len], 0
+    call read_rest_of_header
+
+    ; ; len would be 0 if it was not found
+    ; mov rdx, 0
+    ; mov dl, [multipart_boundary.len]
+    ; print multipart_boundary, rdx
+
+    ; mov rdx, 0
+    ; mov dl, [file_upload_filename.len]
+    ; print file_upload_filename, rdx
+
+    call handle_request
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+read_rest_of_header:
+
+    read_rest_of_header.read_next_line:
+
+        call read_next_header_line
+
+        mov rdx, 0
+        mov dl, [header_line.len]
+        print header_line, rdx
+
+        cmp [header_line.len], 0
+        je read_rest_of_header.return
+
+
+        extract_header_field \
+            str_header_line_multipart_boundary, \
+            str_header_line_multipart_boundary.size, \
+            header_line, \
+            [header_line.len], \
+            multipart_boundary, \
+            [multipart_boundary.len], \
+            read_rest_of_header.not_foud_multipart_boundart
+        read_rest_of_header.not_foud_multipart_boundart:
+        
+
+        extract_header_field \
+            str_header_line_file_upload_filename, \
+            str_header_line_file_upload_filename.size, \
+            header_line, \
+            [header_line.len], \
+            file_upload_filename, \ ; we're keeping the first and the last `"` on purpose
+            [file_upload_filename.len], \
+            read_rest_of_header.not_found_file_upload_filename
+
+            ; if it has been found remove the last character (it's a `"`)
+            cmp [file_upload_filename.len], 0
+            je read_rest_of_header.not_found_file_upload_filename
+
+            mov rax, file_upload_filename
+            .replace_bad_characters: ; HTML is retarded since it switches some of the characters for some retarded codes
+                                     ; we are going to avoid this altogether by replacing the bad characters beforehand
+                
+                cmp byte [rax], 0 ; end of string
+                je .bad_chars_replaced
+
+                ; replace ` ` with `_`
+                cmp byte [rax], ' '
+                je .replace_this_char
+                
+                cmp byte [rax], '"'
+                je .replace_this_char
+
+                cmp byte [rax], "'"
+                je .replace_this_char
+
+                jmp .char_replace_done
+                .replace_this_char:
+                    mov byte [rax], '_'
+                .char_replace_done:
+
+                inc rax
+
+            jmp .replace_bad_characters
+            .bad_chars_replaced:
+
+
+            dec [file_upload_filename.len]
+
+        read_rest_of_header.not_found_file_upload_filename:
+
+    jmp read_rest_of_header.read_next_line
+    
+    read_rest_of_header.return:
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+read_next_header_line:
+    
+    mov rax, header_line
+    push rax
+
+    mov [header_line.len], 0
+
+    sys_read [connfd], tmp_1B_a, tmp_1B_a.size
+    
+    read_next_header_line.loop:
+
+        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+
+        cmp [tmp_1B_b], 10 ; \n
+        jne read_next_header_line.read_next_byte
+        cmp [tmp_1B_a], 13 ; \r
+        jne read_next_header_line.read_next_byte
+
+        jmp read_next_header_line.line_done
+
+        read_next_header_line.read_next_byte:
+
+        pop rax
+        mov cl, [tmp_1B_a]
+        mov [rax], cl
+        inc rax
+        push rax
+
+        inc [header_line.len]
+
+        cmp [header_line.len], HEADER_LINE_MAXLEN
+        je read_next_header_line.cut_until_end_of_line
+
+        mov al, [tmp_1B_b]
+        mov [tmp_1B_a], al
+
+    jmp read_next_header_line.loop
+    
+    read_next_header_line.cut_until_end_of_line:
+
+        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+
+        cmp [tmp_1B_b], 10 ; \n
+        jne read_next_header_line.discard_next_byte
+        cmp [tmp_1B_a], 13 ; \r
+        jne read_next_header_line.discard_next_byte
+
+        jmp read_next_header_line.line_done
+
+        read_next_header_line.discard_next_byte:
+
+        mov al, [tmp_1B_b]
+        mov [tmp_1B_a], al
+
+    jmp read_next_header_line.cut_until_end_of_line
+
+    read_next_header_line.line_done:
+
+    pop rax
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_request:
+
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+
+    mov rax, url
+    inc rax ; skip past the `/`
+
+    cmp byte [rax], '2'
+    je .requested_page_upload
+
+    cmp byte [rax], '3'
+    je .requested_page_download
+
+    cmp byte [rax], '4'
+    je .requested_script_file_upload
+
+    cmp byte [rax], '5'
+    je .requested_script_file_download
+
+    jmp .requested_page_main
+
+    .requested_page_main:
+        call handle_page_main
+        jmp .return
+
+    .requested_page_download:
+        call handle_page_download
+        jmp .return
+
+    .requested_page_upload:
+        call handle_page_upload
+        jmp .return
+    
+    .requested_script_file_upload:
+        call handle_script_file_upload
+        jmp .return
+
+    .requested_script_file_download:
+        call handle_script_file_download
+        jmp .return
+
+    .return:
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_page_main:
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+    sys_write [connfd], str_html_page_main, str_html_page_main.size
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_page_download:
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    send_html_page_download_begin [connfd]
+
+    mov rsi, O_DIRECTORY
+    or rsi, O_RDONLY ; bitwise or
+
+    ; ; not sure if we need this
+    ; mov rdx, S_IRUSR
+    ; or rdx, S_IWUSR
+    ; or rdx, S_IRGRP
+    ; or rdx, S_IROTH
+    mov rdx, 0
+
+    sys_open folder_uploaded_files, rsi, rdx
+    mov [folder_uploaded_files_fd], rax
+
+    .get_dir_entries:
+
+        sys_getdents [folder_uploaded_files_fd], linux_dirent_buf, linux_dirent_buf.size
+        cmp rax, 0
+        je .no_more_dir_entries
+
+        mov [read_dir_nread], rax
+
+        mov [read_dir_bpos], 0
+
+        .read_some_more:
+
+            mov rax, [read_dir_nread]
+            cmp [read_dir_bpos], rax
+            jge .no_more_to_read
+
+            ; move to the appropriate offset
+            mov rax, linux_dirent_buf
+            add rax, [read_dir_bpos]
+            ; now this points to the relevant linux_dirent struct
+
+            mov rbx, rax
+            add rbx, linux_dirent_buf.offset.d_reclen
+                mov rcx, 0
+                mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
+                mov rbx, rcx
+            add rbx, rax
+            dec rbx
+            mov bl, [rbx] ; this is now the d_type (1B)
+
+            ; TODO see why the fuck does this not work
+            ; cmp bl, DT_REG
+            ; jne .read_some_more_next_item ; if it's not a regular file just skip it
+
+            mov rbx, rax
+            add rbx, linux_dirent_buf.offset.d_name ; name of file
+
+            ; save filename
+            mov [tmp_8B_a], rbx
+
+            ; get filename len
+            mov rcx, 0
+            .try_next_char:
+                cmp byte [rbx], 0
+                je .last_char_reached
+                inc rbx
+                inc rcx
+            jmp .try_next_char
+            .last_char_reached:
+
+            ; save filename len
+            mov [tmp_8B], rcx
+
+            send_html_page_download_button \
+                [connfd], \
+                [tmp_8B_a], \
+                [tmp_8B]
+            
+            .read_some_more_next_item:
+
+            ; move to the appropriate offset
+            mov rax, linux_dirent_buf
+            add rax, [read_dir_bpos]
+            ; now this points to the relevant linux_dirent struct
+
+            mov rbx, rax
+            add rbx, linux_dirent_buf.offset.d_reclen
+                mov rcx, 0
+                mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
+                mov rbx, rcx
+
+            ; mov rdx, [read_dir_nread] ; TODO this is wrong; it needs to be d_reclen
+            add [read_dir_bpos], rbx
+            
+        jmp .read_some_more
+        .no_more_to_read:
+
+    jmp .get_dir_entries
+    .no_more_dir_entries:
+
+    send_html_page_download_end [connfd]
+
+    sys_close [folder_uploaded_files_fd]
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_page_upload:
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+    sys_write [connfd], str_html_page_upload, str_html_page_upload.size
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_script_file_upload:
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    call read_rest_of_header
+
+    ; make sure there's a 0 at the end of the filename (we DO have enough mem in buf)
+    mov rbx, 0
+    mov bl, [file_upload_filename.len]
+    mov rax, file_upload_filename
+    add rax, rbx
+    mov byte [rax], 0
+
+    mov rsi, O_WRONLY
+    or rsi, O_CREAT ; bitwise or
+    or rsi, O_TRUNC ; bitwise or
+
+    mov rdx, S_IRUSR
+    or rdx, S_IWUSR
+    or rdx, S_IRGRP
+    or rdx, S_IROTH
+
+    sys_open file_upload_filename, rsi, rdx
+    mov [file_send_upload_fd], rax
+
+    ; ; mov [tmp_8B], 0
+    ; ; sys_sendfile [file_send_upload_fd], [connfd], tmp_8B, 1
+    ; sys_sendfile [file_send_upload_fd], [connfd], 0, 1
+    ; sys_exit rax
+
+    mov [tmp_timeval.tv_sec], FILE_UPLOAD_TIMEOUT_SEC
+    mov [tmp_timeval.tv_usec], FILE_UPLOAD_TIMEOUT_USEC
+    sys_setsockopt [connfd], SOL_SOCKET, SO_RCVTIMEO, tmp_timeval, tmp_timeval.size
+
+    handle_script_file_upload.copy_to_file_loop:
+
+        ; TODO this can be improved by using a bigger buffer; make a dediacated variable for this
+        sys_read [connfd], tmp_8B, tmp_8B.size
+        cmp rax, 0
+        jle handle_script_file_upload.copy_to_file_loop_done
+
+        ; sys_write [file_send_upload_fd], tmp_8B, tmp_8B.size
+        mov rdx, rax
+        sys_write [file_send_upload_fd], tmp_8B, rdx
+    
+    jmp handle_script_file_upload.copy_to_file_loop
+
+    handle_script_file_upload.copy_to_file_loop_done:
+
+    ; this can become dangerous once we switch to nonblocking/blocking-with-timeout
+    mov [tmp_timeval.tv_sec], 0
+    mov [tmp_timeval.tv_usec], 0
+    sys_setsockopt [connfd], SOL_SOCKET, SO_RCVTIMEO, tmp_timeval, tmp_timeval.size
+
+    ; now we need to delete the last (`multipart_boundary.len` + 7["--"+"--"+"\n19"] + 1?["\r"]) characters
+
+    sys_lseek [file_send_upload_fd], 0, SEEK_CUR
+    mov [tmp_8B], rax ; current offset
+
+    ; calc new size
+    mov rcx, 0
+    mov cl, [multipart_boundary.len]
+    sub [tmp_8B], rcx
+    sub [tmp_8B], 8
+
+    sys_ftruncate [file_send_upload_fd], [tmp_8B]
+
+    sys_close [file_send_upload_fd]
+
+    mov rax, 0
+    mov al, [multipart_boundary.len]
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_script_file_download:
+
+    sys_write [connfd], str_http_header_attachment_begin, str_http_header_attachment_begin.size
+
+    ; save file len
+    mov rdx, 0
+    mov dl, [url.len]
+
+    ; save file name
+    mov rsi, url
+    ; skip slash and magic number
+    add rsi, 2
+    sub dl, 2
+    push rsi ; push file name
+
+    sys_write [connfd], rsi, rdx
+
+    sys_write [connfd], str_http_header_attachment_end, str_http_header_attachment_end.size
+
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    mov rsi, O_RDONLY
+
+    pop rdi ; pop file name
+    sys_open rdi, rsi, 0
+    mov [file_send_upload_fd], rax
+    
+    ; get file size
+    sys_lseek [file_send_upload_fd], 0, SEEK_END
+    mov [tmp_8B], rax
+
+    ; go back to the start
+    sys_lseek [file_send_upload_fd], 0, SEEK_SET
+
+    ; TODO call this in a loop
+    sys_sendfile [connfd], [file_send_upload_fd], 0, [tmp_8B]
+
+    sys_close [file_send_upload_fd]
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; data section
+
+segment readable writable
+
+;;;;;;;;;;;;;; "generic" data
+
+str_nl db 10 ;; new line character
+str_nl_len = $ - str_nl
+
+one 4B 1
+sizeof_one = $ - one
+
+tmp_1B 1B 0
+tmp_1B.size = $ - tmp_1B
+
+tmp_1B_a 1B 0
+tmp_1B_a.size = $ - tmp_1B_a
+
+tmp_1B_b 1B 0
+tmp_1B_b.size = $ - tmp_1B_b
+
+tmp_4B 1B 0,0,0,0
+tmp_4B.size = $ - tmp_4B
+
+tmp_8B 8B 0
+tmp_8B.size = $ - tmp_8B
+
+tmp_8B_a 8B 0
+tmp_8B_a.size = $ - tmp_8B_a
+
+;;;;;;;;;;;;;; other data
+
+;;;;;;;; strings
+
+str_starting_program db "starting server"
+str_starting_program_len = $ - str_starting_program
+
+str_warn_folder_existance db "please make sure that the following folder exists: "
+str_warn_folder_existance.size = $ - str_warn_folder_existance
+
+
+; not ideal but why not; avoid some complexity for now
+str_http_header_begin db "HTTP/1.1 200 OK", 13, 10
+;                      db "Content-Type: text/html; charset=utf-8", 13, 10 ; this seems cool but it fucks with the file upload
+                      db "Connection: close", 13, 10
+str_http_header_begin.size = $ - str_http_header_begin
+
+
+str_http_header_attachment_begin db 'Content-disposition: attachment; filename='
+str_http_header_attachment_begin.size = $ - str_http_header_attachment_begin
+
+str_http_header_attachment_end db '"', 13, 10
+str_http_header_attachment_end.size = $ - str_http_header_attachment_end
+
+
+str_http_header_end db 13, 10
+str_http_header_end.size = $ - str_http_header_end
+
+
+str_html_page_main db "<!DOCTYPE html>", 10
+                   db "<html>", 10
+                   db "  <head>", 10
+                   db "    <title>asdasdsdafcstgcreztre</title>", 10
+                   db "  </head>", 10
+                   db "  <body>", 10
+                   db '    <a href="/2" target="_blank">file upload</a>', 10
+                   db "    <br>", 10
+                   db '    <a href="/3" target="_blank">file download</a>', 10
+                   db "  </body>", 10
+                   db "</html>", 10
+str_html_page_main.size = $ - str_html_page_main
+
+
+str_html_page_download_begin db "<!DOCTYPE html>", 10
+                             db "<html>", 10
+str_html_page_download_begin.size = $ - str_html_page_download_begin
+
+    str_html_page_download_button_part1 db '<form action="/5'
+    str_html_page_download_button_part1.size = $ - str_html_page_download_button_part1
+    ; file name goes here; example: asdfg.txt
+    str_html_page_download_button_part2 db '" method="post">', 10
+                                        db '  <button>Click to download: '
+    str_html_page_download_button_part2.size = $ - str_html_page_download_button_part2
+    ; file name goes here; example: asdfg.txt
+    str_html_page_download_button_part3 db '</button>', 10
+                                        db '</form>', 10
+    str_html_page_download_button_part3.size = $ - str_html_page_download_button_part3
+
+str_html_page_download_end db "</html>", 10
+str_html_page_download_end.size = $ - str_html_page_download_end
+
+
+str_html_page_upload db "<!DOCTYPE html>", 10    
+    db "<html>", 10
+    db '<form action="/4" method="post" enctype="multipart/form-data">', 10
+    db '  <label for="file">File</label>', 10
+    db '  <input id="file" name="file" type="file" />', 10
+    db "  <button>Upload</button>", 10
+    db "</form>", 10
+    db "</html>", 10
+str_html_page_upload.size = $ - str_html_page_upload
+
+str_header_line_multipart_boundary db "Content-Type: multipart/form-data; boundary="
+str_header_line_multipart_boundary.size = $ - str_header_line_multipart_boundary
+
+str_header_line_file_upload_filename db 'Content-Disposition: form-data; name="file"; filename="'
+; Content-Disposition: form-data; name="file"; filename="todo-hoi4mod"
+str_header_line_file_upload_filename.size = $ - str_header_line_file_upload_filename
+
+;;;;;;;; other
+
+;; struct sockaddr_in {
+;;     sa_family_t    sin_family;  // 16 bits
+;;     in_port_t      sin_port;    // 16 bits
+;;     struct in_addr sin_addr;    // 32 bits
+;;     uint8_t        sin_zero[8]; // 64 bits
+;; }
+;;
+struc servaddr_in
+{
+    .sin_family dw 0
+    .sin_port   dd 0
+    .sin_addr   dd 0
+    .sin_zero   dq 0
+    .size = $ - .sin_family ;; this should be a comptime variable
+}
+
+sockfd dq -1
+
+connfd dq -1
+
+servaddr servaddr_in ;; OMT tova e kato `equ` i `=` (note that moje da dava6 parametri na taq struktura)
+
+cliaddr servaddr_in
+cliaddr_size dd servaddr.size
+
+
+method 1B 0
+
+header_line 1B 0
+rept (HEADER_LINE_MAXLEN-1) {
+       1B 0
+}
+header_line.len 1B 0
+
+url 1B 0
+rept (URL_MAXLEN) { ; add 1 extra character in case we need to add 0 (so it is a c string)
+       1B 0
+}
+url.len 1B 0
+
+multipart_boundary 1B 0
+rept (HEADER_LINE_MAXLEN-1) {
+    1B 0
+}
+multipart_boundary.len 1B 0
+
+file_upload_filename 1B 0
+rept (HEADER_LINE_MAXLEN-1) {
+    1B 0
+}
+file_upload_filename.len 1B 0
+
+
+file_send_upload_fd dq 0
+
+folder_uploaded_files db "/tmp/file-transfer-uploaded-files", 0
+folder_uploaded_files.size = $ - folder_uploaded_files
+folder_uploaded_files_fd dq 0
+
+; struct timeval {
+;    time_t      tv_sec;   // Number of whole seconds of elapsed time
+;    long int    tv_usec;  // Number of microseconds of rest of elapsed time minus tv_sec. Always less than one million
+; };
+;
+struc timeval {
+    .tv_sec  8B 0
+    .tv_usec 8B 0
+    .size = $ - .tv_sec
+}
+
+tmp_timeval timeval
+
+
+; struct linux_dirent {
+; 	unsigned long   d_ino;    // 8B
+; 	unsigned long   d_off;    // 8B
+; 	unsigned short  d_reclen; // 2B
+; 	char        d_name[];     // variable length
+; };
+;
+; struc linux_dirent {
+;     .d_ino    8B 0
+;     .d_off    8B 0
+;     .d_reclen 2B 0
+;     .d_name   db 0
+; rept (512-1) {
+;               db 0
+;     .size = $ - .d_ino
+; }
+; }
+;
+; linux_dirent_buf linux_dirent
+;
+linux_dirent_buf db 0
+rept (512-1) {
+    db 0
+}
+linux_dirent_buf.size = $ - linux_dirent_buf
+linux_dirent_buf.offset.d_reclen = 16
+linux_dirent_buf.offset.d_name = 18
+
+; read_dir_nread 4B 0
+read_dir_nread 8B 0
+
+; read_dir_bpos 4B 0
+read_dir_bpos 8B 0

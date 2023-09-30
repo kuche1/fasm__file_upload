@@ -76,6 +76,8 @@ RET_CODE_LISTEN_FAIL equ 4
 ;RET_CODE_ACCEPT_FAIL equ 5 ; no longer used
 RET_CODE_SETSOCKOPT_FAIL equ 6
 RET_CODE_CHDIR_FAIL equ 7
+RET_CODE_FOLDER_CONTAINING_UPLOADED_FILES_DOESNT_EXIST equ 8
+RET_CODE_FOLDER_CONTAINING_STATIC_CONTENT_DOESNT_EXIST equ 9
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: server parameters
 
@@ -220,10 +222,33 @@ entry main
 main:
     print str_starting_program, str_starting_program_len
 
-    print_nnl str_warn_folder_existance, str_warn_folder_existance.size
+    ; open folder containing static content
+    mov rsi, O_DIRECTORY
+    or rsi, O_RDONLY ; bitwise or
+    mov rdx, 0
+    sys_open folder_static_content, rsi, rdx
+    mov [folder_static_content_fd], rax
+    cmp rax, 0
+    jge .folder_static_content_ok
+        print_nnl str_warn_folder_existance, str_warn_folder_existance.size
+        print folder_static_content, folder_static_content.size
+        sys_exit RET_CODE_FOLDER_CONTAINING_STATIC_CONTENT_DOESNT_EXIST
+    .folder_static_content_ok:
 
-    print folder_uploaded_files, folder_uploaded_files.size
+    ; open folder containing client uploaded content
+    mov rsi, O_DIRECTORY
+    or rsi, O_RDONLY ; bitwise or
+    mov rdx, 0
+    sys_open folder_uploaded_files, rsi, rdx
+    mov [folder_uploaded_files_fd], rax
+    cmp rax, 0
+    jge .folder_ok
+        print_nnl str_warn_folder_existance, str_warn_folder_existance.size
+        print folder_uploaded_files, folder_uploaded_files.size
+        sys_exit RET_CODE_FOLDER_CONTAINING_UPLOADED_FILES_DOESNT_EXIST
+    .folder_ok:
 
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; TODO delete
     ; cd into the file upload/download folder right away
     sys_chdir folder_uploaded_files
     cmp rax, 0
@@ -284,6 +309,9 @@ main:
     }
 
     jmp serving_thread ; also use main thread to serve
+
+    sys_close [folder_static_content_fd]
+    sys_close [folder_uploaded_files_fd]
 
     sys_shutdown [sockfd], SHUT_RDWR
     sys_close [sockfd]
@@ -455,19 +483,6 @@ handle_page_download:
 
     send_html_page_download_begin [connfd]
 
-    mov rsi, O_DIRECTORY
-    or rsi, O_RDONLY ; bitwise or
-
-    ; ; not sure if we need this
-    ; mov rdx, S_IRUSR
-    ; or rdx, S_IWUSR
-    ; or rdx, S_IRGRP
-    ; or rdx, S_IROTH
-    mov rdx, 0
-
-    sys_open folder_uploaded_files, rsi, rdx
-    mov [folder_uploaded_files_fd], rax
-
     .get_dir_entries:
 
         sys_getdents [folder_uploaded_files_fd], linux_dirent_buf, linux_dirent_buf.size
@@ -550,8 +565,6 @@ handle_page_download:
 
     send_html_page_download_end [connfd]
 
-    sys_close [folder_uploaded_files_fd]
-
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
@@ -586,7 +599,7 @@ handle_script_file_upload:
     or rdx, S_IRGRP
     or rdx, S_IROTH
 
-    sys_open file_upload_filename, rsi, rdx
+    sys_openat [folder_uploaded_files_fd], file_upload_filename, rsi, rdx
     mov [file_send_upload_fd], rax
 
     ; ; mov [tmp_8B], 0
@@ -663,7 +676,7 @@ handle_script_file_download:
     mov rsi, O_RDONLY
 
     pop rdi ; pop file name
-    sys_open rdi, rsi, 0
+    sys_openat [folder_uploaded_files_fd], rdi, rsi, 0
     mov [file_send_upload_fd], rax
     
     ; get file size
@@ -704,7 +717,7 @@ handle_custom_page:
     ; or rdx, S_IROTH
     mov rdx, 0
 
-    sys_open rdi, rsi, rdx
+    sys_openat [folder_static_content_fd], rdi, rsi, rdx
     mov [tmp_fd], rax
     cmp rax, 0
     jge .file_exists
@@ -912,7 +925,7 @@ tmp_fd dq 0
 str_starting_program db "starting server"
 str_starting_program_len = $ - str_starting_program
 
-str_warn_folder_existance db "please make sure that the following folder exists: "
+str_warn_folder_existance db "make sure that the following folder exists: "
 str_warn_folder_existance.size = $ - str_warn_folder_existance
 
 
@@ -1047,8 +1060,12 @@ file_upload_filename.len 1B 0
 file_send_upload_fd dq 0
 
 folder_uploaded_files db "/tmp/file-transfer-uploaded-files", 0
-folder_uploaded_files.size = $ - folder_uploaded_files
+folder_uploaded_files.size = $ - folder_uploaded_files - 1
 folder_uploaded_files_fd dq 0
+
+folder_static_content db "./static_content", 0
+folder_static_content.size = $ - folder_static_content - 1
+folder_static_content_fd dq 0
 
 file_recv_buf rb FILE_RECV_BUF
 file_recv_buf.size = $ - file_recv_buf

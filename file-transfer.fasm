@@ -242,11 +242,18 @@ main:
     ;; servaddr.sin_family = AF_INET;
     mov word [servaddr.sin_family], AF_INET
 
-    ;; servaddr.sin_port = htons(PORT);
-    ;;
-    ;; convert endianness by hand
-    ;; 6969 -(to-hex)-> 0x1b39 -(convert-endianness)-> 0x391b -(to-dec)-> 14619
-    mov word [servaddr.sin_port], 14619
+    ; servaddr.sin_port = htons(PORT);
+    ;
+    ; ; convert endianness by hand
+    ; ; 6969 -(to-hex)-> 0x1b39 -(convert-endianness)-> 0x391b -(to-dec)-> 14619
+    ; mov word [servaddr.sin_port], 14619
+    ;
+    ; convert endianness
+    mov ax, 6969
+    mov bh, ah
+    mov ah, al
+    mov al, bh
+    mov [servaddr.sin_port], ax
 
     ;; servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     ;; INADDR_ANY is 0 therefore I give 0 fucks about endianness
@@ -919,7 +926,7 @@ str_header_line_file_upload_filename.size = $ - str_header_line_file_upload_file
 struc servaddr_in
 {
     .sin_family dw 0
-    .sin_port   dd 0
+    .sin_port   dw 0
     .sin_addr   dd 0
     .sin_zero   dq 0
     .size = $ - .sin_family ;; this should be a comptime variable

@@ -406,10 +406,6 @@ handle_request:
 
     jmp .requested_page_main
 
-    .requested_page_main:
-        call handle_page_main
-        jmp .return
-
     .requested_page_download:
         call handle_page_download
         jmp .return
@@ -424,6 +420,10 @@ handle_request:
 
     .requested_script_file_download:
         call handle_script_file_download
+        jmp .return
+
+    .requested_page_main:
+        call handle_page_main
         jmp .return
 
     .return:

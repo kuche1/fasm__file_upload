@@ -116,7 +116,7 @@ macro print_nnl msg, msg_len {
 
 macro create_tcp_socket {
 ;; returns: dword eax: sockfd
-    sys_socket SOCKET_DOMAIN_IPV4, SOCKET_TYPE_TCP, 0 ;; only one TCP protocol exists so the last arguments stays at 0
+    sys_socket AF_INET, SOCKET_TYPE_TCP, 0 ;; only one TCP protocol exists so the last arguments stays at 0
     cmp rax, 0
     jge tcp_socket_ok
         sys_exit RET_CODE_TCP_SOCKET_FAIL
@@ -240,7 +240,6 @@ main:
 
     create_tcp_socket
     ;; returns: dword eax: sockfd
-
     mov qword [sockfd], rax
 
     sys_setsockopt [sockfd], SOL_SOCKET, SO_REUSEPORT, one, sizeof_one
@@ -250,14 +249,13 @@ main:
     setsockopt_ok:
 
     ;; servaddr.sin_family = AF_INET;
-    mov word [servaddr.sin_family], SOCKET_DOMAIN_IPV4
+    mov word [servaddr.sin_family], AF_INET
 
     ;; servaddr.sin_port = htons(PORT);
     ;;
     ;; convert endianness by hand
     ;; 6969 -(to-hex)-> 0x1b39 -(convert-endianness)-> 0x391b -(to-dec)-> 14619
     mov word [servaddr.sin_port], 14619
-    ;;mov word [servaddr.sin_port], 14875
 
     ;; servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     ;; INADDR_ANY is 0 therefore I give 0 fucks about endianness
@@ -271,7 +269,7 @@ main:
 
     sys_listen [sockfd], MAX_CONNECTIONS
     cmp rax, 0
-    jz listen_is_ok ;; ЛИСТЕН ЛИСТЕН
+    jz listen_is_ok
         sys_exit RET_CODE_LISTEN_FAIL
     listen_is_ok:
 
@@ -286,7 +284,7 @@ main:
 
     jmp serving_thread ; also use main thread to serve
 
-    sys_shutdown [sockfd], SHUTDOWN_READ_AND_WRITE
+    sys_shutdown [sockfd], SHUT_RDWR
     sys_close [sockfd]
 
     sys_exit RET_CODE_SUCC
@@ -306,7 +304,7 @@ serving_thread:
 
     call receive_header
 
-    sys_shutdown [connfd], SHUTDOWN_READ_AND_WRITE
+    sys_shutdown [connfd], SHUT_RDWR
     sys_close [connfd]
 
     jmp serving_thread
@@ -322,31 +320,31 @@ receive_header:
     ; print tmp_4B, tmp_4B.size
 
     cmp [tmp_4B], 'G'
-    je method_get ; assume GET
+    je .method_get ; assume GET
 
     ; cmp [tmp_4B], 'P'
-    jmp method_post ; assume POST
+    jmp .method_post ; assume POST
 
-    method_get:
+    .method_get:
         mov [method], METHOD_GET
-        jmp method_finished
+        jmp .method_finished
 
-    method_post:
+    .method_post:
         sys_read [connfd], tmp_1B, tmp_1B.size ; get rid of ` `
         mov [method], METHOD_POST
-        jmp method_finished
+        jmp .method_finished
 
-    method_finished:
+    .method_finished:
 
     mov rcx, url
     mov [url.len], 0
 
-    receive_next_byte_from_url:
+    .receive_next_byte_from_url:
         push rcx ; TODO stupid
         sys_read [connfd], tmp_1B, tmp_1B.size
         pop rcx
         cmp [tmp_1B], ' '
-        je url_received
+        je .url_received
 
         mov al, [tmp_1B]
         mov [rcx], al
@@ -355,10 +353,10 @@ receive_header:
         inc [url.len]
 
         cmp [url.len], URL_MAXLEN
-        je url_received ; TODO idk what the appropriate action is ; TODO terminating the commection is probably better
+        je .url_received ; TODO idk what the appropriate action is ; TODO terminating the connection is probably better
 
-        jmp receive_next_byte_from_url
-    url_received:
+        jmp .receive_next_byte_from_url
+    .url_received:
 
     ; put 0 at the end; don't worry we have enough mem
     mov byte [rcx], 0

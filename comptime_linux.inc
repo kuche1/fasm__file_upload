@@ -60,7 +60,7 @@ DT_REG equ 8 ; regular file
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; comtime constants: sockets
 
-SOCKET_DOMAIN_IPV4 equ 2
+AF_INET equ 2 ; set socket domain to IPV4
 SOCKET_TYPE_TCP equ 1
 
 SOL_SOCKET equ 1
@@ -68,9 +68,9 @@ SO_REUSEADDR equ 2
 SO_REUSEPORT equ 15
 SO_RCVTIMEO equ 20
 
-SHUTDOWN_READ equ 0
-SHUTDOWN_WRITE equ 1
-SHUTDOWN_READ_AND_WRITE equ 2
+SHUT_RD equ 0 ; shitdown read
+SHUT_WR equ 1 ; shutdown write
+SHUT_RDWR equ 2 ; shutdown read and write
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; macros: syscalls: shorthands
 

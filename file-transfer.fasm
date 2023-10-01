@@ -126,11 +126,13 @@ macro extract_header_field \
     header_line, \
     header_line_len, \
     resulting_data, \
-    resulting_data_len, \
-    label_if_not_found
+    resulting_data_len
 {
+; returns in rax
+; 1 if it was able to extract the header field
+; 0 if it was not
 
-    local return, found_boundary_line, compare_next_char ; now we can use this macro multiple times
+    local return, found_boundary_line, compare_next_char, return_succ, return_fail ; now we can use this macro multiple times
 
     ; check for the multipart boundary
 
@@ -139,7 +141,7 @@ macro extract_header_field \
 
     ; received line is too short
     cmp dh, dl
-    jle label_if_not_found
+    jle return_fail
 
     ; compare strings
 
@@ -161,7 +163,7 @@ macro extract_header_field \
 
         ; see if they're the same
         cmp cl, ch
-        jne label_if_not_found
+        jne return_fail
 
         dec dl
 
@@ -180,7 +182,7 @@ macro extract_header_field \
         .copy_boundary:
 
             cmp dh, 0
-            je return
+            je return_succ
 
             ; copy
             mov ch, [rbx]
@@ -192,6 +194,14 @@ macro extract_header_field \
             dec dh
         
         jmp .copy_boundary
+
+    return_succ:
+        mov rax, 1
+        jmp return
+
+    return_fail:
+        mov rax, 0
+        jmp return
 
     return:
 }
@@ -759,10 +769,9 @@ read_rest_of_header:
             header_line, \
             [header_line.len], \
             multipart_boundary, \
-            [multipart_boundary.len], \
-            read_rest_of_header.not_foud_multipart_boundart
-        read_rest_of_header.not_foud_multipart_boundart:
-        
+            [multipart_boundary.len]
+        ; don't care if we succeeded or failed
+
 
         extract_header_field \
             str_header_line_file_upload_filename, \
@@ -770,16 +779,19 @@ read_rest_of_header:
             header_line, \
             [header_line.len], \
             file_upload_filename, \ ; we're keeping the first and the last `"` on purpose
-            [file_upload_filename.len], \
-            read_rest_of_header.not_found_file_upload_filename
+            [file_upload_filename.len]
+
+        cmp rax, 0
+        je .not_found_file_upload_filename
 
             ; if it has been found remove the last character (it's a `"`)
+
             cmp [file_upload_filename.len], 0
-            je read_rest_of_header.not_found_file_upload_filename
+            je .not_found_file_upload_filename
 
             mov rax, file_upload_filename
             .replace_bad_characters: ; HTML is retarded since it switches some of the characters for some retarded codes
-                                     ; we are going to avoid this altogether by replacing the bad characters beforehand
+                                        ; we are going to avoid this altogether by replacing the bad characters beforehand
                 
                 cmp byte [rax], 0 ; end of string
                 je .bad_chars_replaced
@@ -807,7 +819,7 @@ read_rest_of_header:
 
             dec [file_upload_filename.len]
 
-        read_rest_of_header.not_found_file_upload_filename:
+        .not_found_file_upload_filename:
 
     jmp read_rest_of_header.read_next_line
     

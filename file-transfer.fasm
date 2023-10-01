@@ -53,6 +53,7 @@
 format ELF64 executable
 
 include "linux-comptime.inc"
+include "util-comptime.inc"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: data types
 ; https://flatassembler.net/docs.php?article=manual#1.2.1
@@ -677,23 +678,24 @@ read_rest_of_header:
         je read_rest_of_header.return
 
 
-        mov rdi, str_header_line_multipart_boundary
-        mov sil, str_header_line_multipart_boundary.size
-        mov rdx, header_line
-        mov r10b, [header_line.len]
-        mov r8, multipart_boundary
-        mov r9, multipart_boundary.len
-        call extract_header_field
-        ; don't care if we succeeded or failed
+        fnc818188 \
+            extract_header_field, \
+            str_header_line_multipart_boundary, \
+            str_header_line_multipart_boundary.size, \
+            header_line, \
+            [header_line.len], \
+            multipart_boundary, \
+            multipart_boundary.len
 
 
-        mov rdi, str_header_line_file_upload_filename
-        mov sil, str_header_line_file_upload_filename.size
-        mov rdx, header_line
-        mov r10b, [header_line.len]
-        mov r8, file_upload_filename
-        mov r9, file_upload_filename.len
-        call extract_header_field
+        fnc818188 \
+            extract_header_field, \
+            str_header_line_file_upload_filename, \
+            str_header_line_file_upload_filename.size, \
+            header_line, \
+            [header_line.len], \
+            file_upload_filename, \
+            file_upload_filename.len
 
         cmp rax, 0
         je .not_found_file_upload_filename

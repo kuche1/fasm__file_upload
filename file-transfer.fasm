@@ -120,92 +120,6 @@ macro create_tcp_socket {
     tcp_socket_ok: ;; TODO try and use `$` or something similar so that the macro can be used more than once
 }
 
-macro extract_header_field \
-    prefix, \
-    prefix_len, \
-    header_line, \
-    header_line_len, \
-    resulting_data, \
-    resulting_data_len
-{
-; returns in rax
-; 1 if it was able to extract the header field
-; 0 if it was not
-
-    local return, found_boundary_line, compare_next_char, return_succ, return_fail ; now we can use this macro multiple times
-
-    ; check for the multipart boundary
-
-    mov dl, prefix_len
-    mov dh, header_line_len
-
-    ; received line is too short
-    cmp dh, dl
-    jle return_fail
-
-    ; compare strings
-
-    mov rax, prefix
-    mov rbx, header_line
-
-    compare_next_char:
-
-        cmp dl, 0
-        je found_boundary_line
-
-        ; read char from expected multipart
-        mov cl, [rax]
-        inc rax
-
-        ; read char from received line
-        mov ch, [rbx]
-        inc rbx
-
-        ; see if they're the same
-        cmp cl, ch
-        jne return_fail
-
-        dec dl
-
-    jmp compare_next_char
-
-    found_boundary_line:
-
-        mov rax, resulting_data
-
-        mov dl, prefix_len
-        mov dh, header_line_len
-
-        sub dh, dl
-        mov resulting_data_len, dh
-
-        .copy_boundary:
-
-            cmp dh, 0
-            je return_succ
-
-            ; copy
-            mov ch, [rbx]
-            inc rbx
-
-            mov [rax], ch
-            inc rax
-
-            dec dh
-        
-        jmp .copy_boundary
-
-    return_succ:
-        mov rax, 1
-        jmp return
-
-    return_fail:
-        mov rax, 0
-        jmp return
-
-    return:
-}
-
 macro send_html_page_download_begin sock {
     sys_write sock, str_html_page_download_begin, str_html_page_download_begin.size
 }
@@ -763,23 +677,23 @@ read_rest_of_header:
         je read_rest_of_header.return
 
 
-        extract_header_field \
-            str_header_line_multipart_boundary, \
-            str_header_line_multipart_boundary.size, \
-            header_line, \
-            [header_line.len], \
-            multipart_boundary, \
-            [multipart_boundary.len]
+        mov rdi, str_header_line_multipart_boundary
+        mov sil, str_header_line_multipart_boundary.size
+        mov rdx, header_line
+        mov r10b, [header_line.len]
+        mov r8, multipart_boundary
+        mov r9, multipart_boundary.len
+        call extract_header_field
         ; don't care if we succeeded or failed
 
 
-        extract_header_field \
-            str_header_line_file_upload_filename, \
-            str_header_line_file_upload_filename.size, \
-            header_line, \
-            [header_line.len], \
-            file_upload_filename, \ ; we're keeping the first and the last `"` on purpose
-            [file_upload_filename.len]
+        mov rdi, str_header_line_file_upload_filename
+        mov sil, str_header_line_file_upload_filename.size
+        mov rdx, header_line
+        mov r10b, [header_line.len]
+        mov r8, file_upload_filename
+        mov r9, file_upload_filename.len
+        call extract_header_field
 
         cmp rax, 0
         je .not_found_file_upload_filename
@@ -887,6 +801,118 @@ read_next_header_line:
     read_next_header_line.line_done:
 
     pop rax
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+extract_header_field:
+; input:
+;   rdi - rdi  8B - prefix
+;   rsi - sil  1B - prefix_len
+;   rdx - rdx  8B - header_line
+;   r10 - r10b 1B - header_line_len
+;   r8  - r8   8B - resulting_data - result will be written here (where this points)
+;   r9  - r9   8B - resulting_data_len - result will be written here (where this point)
+;
+; output:
+;   returns in rax
+;   1 if it was able to extract the header field
+;   0 if it was not
+
+; TODO push/pop modified regs
+
+    prefix equ rdi
+    prefix_len equ sil
+    header_line equ [extract_header_field.stack.header_line]
+    header_line_len equ [extract_header_field.stack.header_line_len]
+    resulting_data equ r8
+    resulting_data_len equ r9
+
+    ; local return, found_boundary_line, compare_next_char, return_succ, return_fail ; now we can use this macro multiple times
+    ; TODO move this somewhere else as an example
+
+    ; load artificial stack
+    mov header_line, rdx
+    mov header_line_len, r10b
+
+    ; check for the multipart boundary
+
+    mov dl, prefix_len
+    mov dh, header_line_len
+
+    ; received line is too short
+    cmp dh, dl
+    jle .return_fail
+
+    ; compare strings
+
+    mov rbx, header_line
+
+    .compare_next_char:
+
+        cmp dl, 0
+        je .found_boundary_line
+
+        ; read char from expected multipart
+        mov cl, [prefix]
+        inc prefix
+
+        ; read char from received line
+        mov ch, [rbx]
+        inc rbx
+
+        ; see if they're the same
+        cmp cl, ch
+        jne .return_fail
+
+        dec dl
+
+    jmp .compare_next_char
+
+    .found_boundary_line:
+
+        mov dl, prefix_len
+        mov dh, header_line_len
+
+        sub dh, dl
+        mov rax, resulting_data_len
+        mov [rax], dh
+
+        mov rax, resulting_data
+
+        .copy_boundary:
+
+            cmp dh, 0
+            je .return_succ
+
+            ; copy
+            mov ch, [rbx]
+            inc rbx
+
+            mov [rax], ch
+            inc rax
+
+            dec dh
+        
+        jmp .copy_boundary
+
+    .return_succ:
+        mov rax, 1
+        jmp .return
+
+    .return_fail:
+        mov rax, 0
+        jmp .return
+
+    restore prefix
+    restore prefix_len
+    restore header_line
+    restore header_line_len
+    restore resulting_data
+    restore resulting_data_len
+
+    .return:
 
     ret
 
@@ -1098,3 +1124,7 @@ read_dir_nread 8B 0
 
 ; read_dir_bpos 4B 0
 read_dir_bpos 8B 0
+
+
+extract_header_field.stack.header_line        8B 0
+extract_header_field.stack.header_line_len    1B 0

@@ -434,31 +434,19 @@ handle_request:
     jmp .requested_custom_page
 
     .requested_page_main:
-        ; this is idiotic
-        mov rax, url
-        mov byte [rax], '/'
-        inc rax
-        mov byte [rax], 'i'
-        inc rax
-        mov byte [rax], 'n'
-        inc rax
-        mov byte [rax], 'd'
-        inc rax
-        mov byte [rax], 'e'
-        inc rax
-        mov byte [rax], 'x'
-        inc rax
-        mov byte [rax], '.'
-        inc rax
-        mov byte [rax], 'h'
-        inc rax
-        mov byte [rax], 't'
-        inc rax
-        mov byte [rax], 'm'
-        inc rax
-        mov byte [rax], 'l'
-        inc rax
-        mov byte [rax], 0
+        ; not ideal but ok
+        mov byte [url], '/'
+        mov byte [url+1], 'i'
+        mov byte [url+2], 'n'
+        mov byte [url+3], 'd'
+        mov byte [url+4], 'e'
+        mov byte [url+5], 'x'
+        mov byte [url+6], '.'
+        mov byte [url+7], 'h'
+        mov byte [url+8], 't'
+        mov byte [url+9], 'm'
+        mov byte [url+10], 'l'
+        mov byte [url+11], 0
         mov [url.len], 11
         jmp handle_request
 

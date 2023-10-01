@@ -51,7 +51,7 @@
 
 format ELF64 executable
 
-include "comptime_linux.inc"
+include "linux-comptime.inc"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: data types
 ; https://flatassembler.net/docs.php?article=manual#1.2.1

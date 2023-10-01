@@ -430,7 +430,6 @@ handle_request:
     cmp byte [rax], '5'
     je .requested_script_file_download
 
-    ; jmp .requested_page_404
     jmp .requested_custom_page
 
     .requested_page_main:

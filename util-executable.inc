@@ -21,7 +21,7 @@ open_file_read_at:
 
     mov r10, 0
 
-    sys_openat rdi, rsi, rdx, r10
+    sys0 SYSCALL_OPENAT
 
     pop r10
     pop rdx
@@ -52,7 +52,7 @@ open_file_write_at:
     or r10, S_IRGRP
     or r10, S_IROTH
 
-    sys_openat rdi, rsi, rdx, r10
+    sys0 SYSCALL_OPENAT
 
     pop r10
     pop rdx
@@ -78,7 +78,7 @@ open_folder_read:
 
     mov rdx, 0
 
-    sys_open rdi, rsi, rdx
+    sys0 SYSCALL_OPEN
 
     pop rdx
     pop rsi

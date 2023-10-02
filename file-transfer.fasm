@@ -615,18 +615,12 @@ handle_page_404:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_custom_page:
-    mov rdi, url
-    inc rdi ; skip the `/`
 
-    mov rsi, O_RDONLY
+    fnc88 \
+        open_file_read_at, \
+        [folder_static_content_fd], \
+        (url+1) ; skip the `/`
 
-    ; mov rdx, S_IRUSR
-    ; or rdx, S_IWUSR
-    ; or rdx, S_IRGRP
-    ; or rdx, S_IROTH
-    mov rdx, 0
-
-    sys_openat [folder_static_content_fd], rdi, rsi, rdx
     mov [tmp_fd], rax
     cmp rax, 0
     jge .file_exists

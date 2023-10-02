@@ -3,6 +3,32 @@ include "linux-comptime.inc"
 include "util-comptime.inc"
 
 
+open_file_read_at:
+; input:
+;   rdi - fd of folder that contains file (cstring)
+;   rsi - file name
+;
+; output:
+;   rax - fd (negative if there was an error)
+;
+; trash:
+;   none
+
+    push rdx
+    push r10
+
+    mov rdx, O_RDONLY
+
+    mov r10, 0
+
+    sys_openat rdi, rsi, rdx, r10
+
+    pop r10
+    pop rdx
+
+    ret
+
+
 open_file_write_at:
 ; input:
 ;   rdi - fd of folder that contains file (cstring)

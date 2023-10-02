@@ -45,12 +45,17 @@ macro fnc8 name, arg1 {
     call name
 }
 
+macro fnc88 name, arg1, arg2 {
+    mov rsi, arg2
+    fnc8 name, arg1
+}
+
 macro fnc818188 name, arg1, arg2, arg3, arg4, arg5, arg6 {
-    mov rdi, arg1
-    mov sil, arg2
-    mov rdx, arg3
-    mov r10b, arg4
-    mov r8, arg5
     mov r9, arg6
+    mov r8, arg5
+    mov r10b, arg4
+    mov rdx, arg3
+    mov sil, arg2
+    mov rdi, arg1
     call name
 }

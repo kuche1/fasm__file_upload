@@ -504,16 +504,11 @@ handle_script_file_upload:
     add rax, rbx
     mov byte [rax], 0
 
-    mov rsi, O_WRONLY
-    or rsi, O_CREAT ; bitwise or
-    or rsi, O_TRUNC ; bitwise or
+    fnc88 \
+        open_file_write_at, \
+        [folder_uploaded_files_fd], \
+        file_upload_filename
 
-    mov rdx, S_IRUSR
-    or rdx, S_IWUSR
-    or rdx, S_IRGRP
-    or rdx, S_IROTH
-
-    sys_openat [folder_uploaded_files_fd], file_upload_filename, rsi, rdx
     mov [file_send_upload_fd], rax
 
     ; ; mov [tmp_8B], 0

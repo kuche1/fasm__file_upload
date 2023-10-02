@@ -3,6 +3,48 @@ include "linux-comptime.inc"
 include "util-comptime.inc"
 
 
+cstr_to_uint:
+; input:
+;   rdi - cstring
+;
+; output:
+;   rax - uint value
+;
+; trash:
+;   none
+
+    push rbx
+    push rcx
+    push rdi
+
+    xor rax, rax ; fancy way of doing `mov rax, 0`
+    xor rbx, rbx
+
+    mov rcx, 10
+
+    .process_next_char:
+
+        mov bl, [rdi]
+        inc rdi
+
+        cmp bl, 0
+        je .end_of_string_reaced
+
+        sub bl, '0' ; if we have something other than '0123456789' in `bl` we will get a silent error here
+        mul rcx ; multiply rax by 10
+        add rax, rbx
+
+    jmp .process_next_char
+
+    .end_of_string_reaced:
+
+    pop rdi
+    pop rcx
+    pop rbx
+
+    ret
+
+
 open_file_read_at:
 ; input:
 ;   rdi - fd of folder that contains file (cstring)

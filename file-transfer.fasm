@@ -5,13 +5,9 @@
 ;
 ; non-blocking IO and check ret code (checking ret code might turn out to not be a great idea)
 ;
-; use `openat` instead of switching CWD
-;
 ; use `jle` instead of `je` when comparing lengths
 ;
 ; create the `/tmp/...` folder
-;
-; check command-line args
 ;
 ; make macros hygenic (as in the push/pop their own registers)
 ; or go tell the caller to fuck off

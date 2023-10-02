@@ -141,6 +141,8 @@ macro send_html_page_download_end sock {
 
 segment readable executable
 
+include "util-executable.inc"
+
 entry main
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
@@ -148,11 +150,11 @@ entry main
 main:
     print str_starting_program, str_starting_program_len
 
-    ; open folder containing static content
-    mov rsi, O_DIRECTORY
-    or rsi, O_RDONLY ; bitwise or
-    mov rdx, 0
-    sys_open folder_static_content, rsi, rdx
+
+    fnc8 \
+        open_folder_read, \
+        folder_static_content
+
     mov [folder_static_content_fd], rax
     cmp rax, 0
     jge .folder_static_content_ok
@@ -161,11 +163,11 @@ main:
         sys_exit RET_CODE_FOLDER_CONTAINING_STATIC_CONTENT_DOESNT_EXIST
     .folder_static_content_ok:
 
-    ; open folder containing client uploaded content
-    mov rsi, O_DIRECTORY
-    or rsi, O_RDONLY ; bitwise or
-    mov rdx, 0
-    sys_open folder_uploaded_files, rsi, rdx
+
+    fnc8 \
+        open_folder_read, \
+        folder_uploaded_files
+
     mov [folder_uploaded_files_fd], rax
     cmp rax, 0
     jge .folder_ok
@@ -819,8 +821,8 @@ extract_header_field:
 ;
 ; output:
 ;   returns in rax
-;   1 if it was able to extract the header field
-;   0 if it was not
+;       1 if it was able to extract the header field
+;       0 if it was not
 
 ; TODO push/pop modified regs
 

@@ -114,6 +114,9 @@ macro print_nnl msg, msg_len {
 
 macro create_tcp_socket {
 ;; returns: dword eax: sockfd
+
+    local tcp_socket_ok ; now this macro can be called multiple times without any label errors
+
     sys_socket AF_INET, SOCKET_TYPE_TCP, 0 ;; only one TCP protocol exists so the last arguments stays at 0
     cmp rax, 0
     jge tcp_socket_ok
@@ -176,14 +179,6 @@ main:
         sys_exit RET_CODE_FOLDER_CONTAINING_UPLOADED_FILES_DOESNT_EXIST
     .folder_ok:
 
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; TODO delete
-    ; cd into the file upload/download folder right away
-    sys_chdir folder_uploaded_files
-    cmp rax, 0
-    je .chdir_ok
-        ; chdir error
-        sys_exit RET_CODE_CHDIR_FAIL
-    .chdir_ok:
 
     create_tcp_socket
     ;; returns: dword eax: sockfd
@@ -832,9 +827,6 @@ extract_header_field:
     header_line_len equ [extract_header_field.stack.header_line_len]
     resulting_data equ r8
     resulting_data_len equ r9
-
-    ; local return, found_boundary_line, compare_next_char, return_succ, return_fail ; now we can use this macro multiple times
-    ; TODO move this somewhere else as an example
 
     ; load artificial stack
     mov header_line, rdx

@@ -32,6 +32,7 @@
 ;
 ; omg you get NO SYMBOLS WTF
 ; no `main`, no `_start`, nothing
+; if you don't believe me check with `nm`
 ;
 ; run with `strace`
 ;

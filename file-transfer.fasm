@@ -22,7 +22,6 @@
 ;
 ; https://flatassembler.net/docs.php
 ; http://bos.asmhackers.net/docs/FASM%20tutorial/preproc.html
-; https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
 ;
 ; registers: https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
 ; more registers: https://cs.brown.edu/courses/cs033/docs/guides/x64_cheatsheet.pdf

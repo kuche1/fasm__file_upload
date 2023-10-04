@@ -384,60 +384,6 @@ handle_request:
     .done:
     ret
 
-
-    cmp [url.len], 1
-    je .requested_page_main
-
-    mov rax, url
-    inc rax ; skip past the `/` ; TODO fuck `inc`
-
-    cmp byte [rax], '4'
-    je .requested_script_file_upload
-
-    cmp byte [rax], '5'
-    je .requested_script_file_download
-
-    cmp byte [rax], '6'
-    je .requested_javascript_ls
-
-    jmp .requested_custom_page
-
-    .requested_page_main:
-        ; not ideal but ok
-        mov byte [url], '/'
-        mov byte [url+1], 'i'
-        mov byte [url+2], 'n'
-        mov byte [url+3], 'd'
-        mov byte [url+4], 'e'
-        mov byte [url+5], 'x'
-        mov byte [url+6], '.'
-        mov byte [url+7], 'h'
-        mov byte [url+8], 't'
-        mov byte [url+9], 'm'
-        mov byte [url+10], 'l'
-        mov byte [url+11], 0
-        mov [url.len], 11
-        jmp handle_request
-    
-    .requested_script_file_upload:
-        call handle_script_file_upload
-        jmp .return
-
-    .requested_script_file_download:
-        call handle_script_file_download
-        jmp .return
-
-    .requested_custom_page:
-        call handle_custom_page
-        jmp .return
-
-    .requested_javascript_ls:
-        call handle_javascript_ls
-        jmp .return
-
-    .return:
-    ret
-
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_request_get:
@@ -470,9 +416,7 @@ handle_request_get:
 
 handle_request_post:
 
-    ; skip past the `/` in `url`
-
-    cmp byte [url+1], '4'
+    cmp byte [url+1], '4' ; skipping past the `/`
     je .requested_script_file_upload
 
     cmp byte [url+1], '5'

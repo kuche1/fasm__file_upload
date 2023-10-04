@@ -36,7 +36,7 @@ h1{
   color: white;
   border: 1px dashed #4CAF50; 
   border-radius: 3px;
-  transition: 0.4s;
+  transition: 0.2s;
   }
   .Upload:hover {
     background-color: #4CAF50;
@@ -51,7 +51,7 @@ h1{
         color: white;
         border: 1px dashed #DA2C38; 
         border-radius: 3px;
-        transition: 0.4s;
+        transition: 0.2s;
 }
 .Download:hover {
     background-color: #DA2C38;

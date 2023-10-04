@@ -404,6 +404,7 @@ handle_request_get:
         mov byte [url+10], 'l'
         mov byte [url+11], 0
         mov [url.len], 11
+        assert 11 < URL_MAXLEN ; compile time assert ; realistically it should be <= but that would create a dependency, so let's just keep it as is, it's not going to cause a trouble any time soon
     .no_need_to_fix_request:
 
     call handle_custom_page

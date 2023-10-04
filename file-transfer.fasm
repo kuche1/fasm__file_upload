@@ -17,6 +17,8 @@
 ; check TCP_NODELAY
 ;
 ; check the number of written bytes when sending data
+;
+; make it so that you can select multiple files for upload
 
 ; info
 ;

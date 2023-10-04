@@ -387,7 +387,6 @@ handle_request:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_request_get:
-    .begin:
 
     cmp [url.len], 1
     jne .no_need_to_fix_request
@@ -405,7 +404,6 @@ handle_request_get:
         mov byte [url+10], 'l'
         mov byte [url+11], 0
         mov [url.len], 11
-        jmp .begin
     .no_need_to_fix_request:
 
     call handle_custom_page

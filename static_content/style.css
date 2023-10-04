@@ -1,38 +1,42 @@
 @import url('https://fonts.googleapis.com/css2?family=Gabarito:wght@700&family=Kanit:ital,wght@1,300&display=swap');
 
 *{
+  background-color: #1C1B22;
     font-family: 'Gabarito', cursive;
     font-family: 'Kanit', sans-serif;
 }
-
+h1{
+  color: white;
+}
 .wraper{
-    border: 2px groove;
-    border-radius: 10px;
-    width: 10em;
-    padding: 3em;
-    padding-top: 1.5em;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+  color: pink;
+  border: 2px groove;
+  border-radius: 10px;
+  width: 10em;
+  padding: 3em;
+  padding-top: 1.5em;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 
 .buttons{
-    display: flex;
-    gap: 1em;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+  display: flex;
+  gap: 1em;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .Upload{
-    font-size: 20px;
-    background-color: white;
-    color: black;
-    border: 1px dashed #4CAF50; 
-    border-radius: 5em;
-    transition: 0.4s;
+  font-size: 20px;
+  background-color:  	#303030;
+  color: white;
+  border: 1px dashed #4CAF50; 
+  border-radius: 3px;
+  transition: 0.4s;
   }
   .Upload:hover {
     background-color: #4CAF50;
@@ -43,10 +47,10 @@
 
 .Download{
     font-size: 20px;
-        background-color: white;
-        color: black;
+        background-color: #303030;
+        color: white;
         border: 1px dashed #DA2C38; 
-        border-radius: 5em;
+        border-radius: 3px;
         transition: 0.4s;
 }
 .Download:hover {

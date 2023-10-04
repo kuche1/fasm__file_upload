@@ -68,6 +68,7 @@ SOL_SOCKET equ 1
 SO_REUSEADDR equ 2
 SO_REUSEPORT equ 15
 SO_RCVTIMEO equ 20
+SO_SNDTIMEO equ 21
 
 SHUT_RD equ 0 ; shitdown read
 SHUT_WR equ 1 ; shutdown write

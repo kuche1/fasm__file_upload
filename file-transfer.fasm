@@ -3,8 +3,6 @@
 
 ; TODO
 ;
-; non-blocking IO and check ret code (checking ret code might turn out to not be a great idea)
-;
 ; use `jle` instead of `je` when comparing lengths
 ;
 ; create the `/tmp/...` folder
@@ -17,6 +15,8 @@
 ; add an "uploading..." message on the upload page
 ;
 ; check TCP_NODELAY
+;
+; check the number of written bytes when sending data
 
 ; info
 ;
@@ -87,6 +87,8 @@ HEADER_LINE_MAXLEN equ 128 ; in bytes ; TODO currently this is not long enough f
 FILE_RECV_BUF equ 32 ; in bytes ; this dramatically affects client upload speed
 CLIENT_UPLOAD_TIMEOUT_SEC equ 0
 CLIENT_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
+CLIENT_DOWNLOAD_TIMEOUT_SEC equ CLIENT_UPLOAD_TIMEOUT_SEC
+CLIENT_DOWNLOAD_TIMEOUT_USEC equ CLIENT_UPLOAD_TIMEOUT_USEC
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: idkman
 
@@ -273,6 +275,11 @@ serving_thread:
     mov [tmp_timeval.tv_sec], CLIENT_UPLOAD_TIMEOUT_SEC
     mov [tmp_timeval.tv_usec], CLIENT_UPLOAD_TIMEOUT_USEC
     sys_setsockopt [connfd], SOL_SOCKET, SO_RCVTIMEO, tmp_timeval, tmp_timeval.size
+
+    ; set client download timeout
+    mov [tmp_timeval.tv_sec], CLIENT_DOWNLOAD_TIMEOUT_SEC
+    mov [tmp_timeval.tv_usec], CLIENT_DOWNLOAD_TIMEOUT_USEC
+    sys_setsockopt [connfd], SOL_SOCKET, SO_SNDTIMEO, tmp_timeval, tmp_timeval.size
 
     call receive_header
 

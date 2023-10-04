@@ -127,22 +127,6 @@ macro create_tcp_socket {
     tcp_socket_ok: ;; TODO try and use `$` or something similar so that the macro can be used more than once
 }
 
-macro send_html_page_download_begin sock {
-    sys_write sock, str_html_page_download_begin, str_html_page_download_begin.size
-}
-
-macro send_html_page_download_button sock, filename, filename_len {
-    sys_write sock, str_html_page_download_button_part1, str_html_page_download_button_part1.size
-    sys_write sock, filename, filename_len
-    sys_write sock, str_html_page_download_button_part2, str_html_page_download_button_part2.size
-    sys_write sock, filename, filename_len
-    sys_write sock, str_html_page_download_button_part3, str_html_page_download_button_part3.size
-}
-
-macro send_html_page_download_end sock {
-    sys_write sock, str_html_page_download_end, str_html_page_download_end.size
-}
-
 ;;;;;;;;;;;;;;;;;;;;;;;;; code section
 
 segment readable executable
@@ -383,9 +367,6 @@ handle_request:
     mov rax, url
     inc rax ; skip past the `/`
 
-    ; cmp byte [rax], '3'
-    ; je .requested_page_download
-
     cmp byte [rax], '4'
     je .requested_script_file_upload
 
@@ -413,10 +394,6 @@ handle_request:
         mov byte [url+11], 0
         mov [url.len], 11
         jmp handle_request
-
-    ; .requested_page_download:
-    ;     call handle_page_download
-    ;     jmp .return
     
     .requested_script_file_upload:
         call handle_script_file_upload
@@ -436,100 +413,6 @@ handle_request:
 
     .return:
     ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;; fnc
-
-; handle_page_download:
-;     sys_write [connfd], str_http_header_begin, str_http_header_begin.size
-;     sys_write [connfd], str_http_header_end, str_http_header_end.size
-
-;     send_html_page_download_begin [connfd]
-
-;     .get_dir_entries:
-
-;         sys_getdents [folder_uploaded_files_fd], linux_dirent_buf, linux_dirent_buf.size
-;         cmp rax, 0
-;         je .no_more_dir_entries
-
-;         mov [read_dir_nread], rax
-
-;         mov [read_dir_bpos], 0
-
-;         .read_some_more:
-
-;             mov rax, [read_dir_nread]
-;             cmp [read_dir_bpos], rax
-;             jge .no_more_to_read
-
-;             ; move to the appropriate offset
-;             mov rax, linux_dirent_buf
-;             add rax, [read_dir_bpos]
-;             ; now this points to the relevant linux_dirent struct
-
-;             mov rbx, rax
-;             add rbx, linux_dirent_buf.offset.d_reclen
-;                 mov rcx, 0
-;                 mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
-;                 mov rbx, rcx
-;             add rbx, rax
-;             dec rbx
-;             mov bl, [rbx] ; this is now the d_type (1B)
-
-;             ; TODO see why the fuck does this not work
-;             ; cmp bl, DT_REG
-;             ; jne .read_some_more_next_item ; if it's not a regular file just skip it
-
-;             mov rbx, rax
-;             add rbx, linux_dirent_buf.offset.d_name ; name of file
-
-;             ; save filename
-;             mov [tmp_8B_a], rbx
-
-;             ; get filename len
-;             mov rcx, 0
-;             .try_next_char:
-;                 cmp byte [rbx], 0
-;                 je .last_char_reached
-;                 inc rbx
-;                 inc rcx
-;             jmp .try_next_char
-;             .last_char_reached:
-
-;             ; save filename len
-;             mov [tmp_8B], rcx
-
-;             send_html_page_download_button \
-;                 [connfd], \
-;                 [tmp_8B_a], \
-;                 [tmp_8B]
-            
-;             .read_some_more_next_item:
-
-;             ; move to the appropriate offset
-;             mov rax, linux_dirent_buf
-;             add rax, [read_dir_bpos]
-;             ; now this points to the relevant linux_dirent struct
-
-;             mov rbx, rax
-;             add rbx, linux_dirent_buf.offset.d_reclen
-;                 mov rcx, 0
-;                 mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
-;                 mov rbx, rcx
-
-;             ; mov rdx, [read_dir_nread] ; TODO this is wrong; it needs to be d_reclen
-;             add [read_dir_bpos], rbx
-            
-;         jmp .read_some_more
-;         .no_more_to_read:
-
-;     jmp .get_dir_entries
-;     .no_more_dir_entries:
-
-;     sys_lseek [folder_uploaded_files_fd], 0, SEEK_SET ; reset folder state
-
-;     send_html_page_download_end [connfd]
-
-;     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
@@ -1095,25 +978,6 @@ str_http_header_begin_404.size = $ - str_http_header_begin_404
 
 str_http_header_end db 13, 10
 str_http_header_end.size = $ - str_http_header_end
-
-
-str_html_page_download_begin db "<!DOCTYPE html>", 10
-                             db "<html>", 10
-str_html_page_download_begin.size = $ - str_html_page_download_begin
-
-    str_html_page_download_button_part1 db '<form action="/5'
-    str_html_page_download_button_part1.size = $ - str_html_page_download_button_part1
-    ; file name goes here; example: asdfg.txt
-    str_html_page_download_button_part2 db '" method="post">', 10
-                                        db '  <button>Click to download: '
-    str_html_page_download_button_part2.size = $ - str_html_page_download_button_part2
-    ; file name goes here; example: asdfg.txt
-    str_html_page_download_button_part3 db '</button>', 10
-                                        db '</form>', 10
-    str_html_page_download_button_part3.size = $ - str_html_page_download_button_part3
-
-str_html_page_download_end db "</html>", 10
-str_html_page_download_end.size = $ - str_html_page_download_end
 
 
 str_html_page_404 db "404", 10

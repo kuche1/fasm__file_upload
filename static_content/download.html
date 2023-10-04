@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+
+<body id="body">
+    <!-- <form action="/5~file~" method="post" id="sex">
+        <button>Click to download: ~file~</button>
+    </form> -->
+</body>
+
+<script>
+
+    const Http = new XMLHttpRequest(); // it sucks that it's an XMLHttp, should compensate for that on the back end
+    const url='/6';
+    Http.open("POST", url);
+    Http.send();
+
+    Http.onreadystatechange = (event) => {
+        // console.log(event)
+        if (Http.readyState !== XMLHttpRequest.DONE) {
+            return
+        }
+
+        let response = Http.responseText
+        // console.log(response)
+
+        files = response.split('\n') // split
+        files = files.filter(n => n) // get rid of empty line
+
+
+        files.forEach((file) => {
+            // console.log(file)
+
+            let form = document.createElement("form");
+            form.action = "/5" + file
+            form.method = "post"
+
+            let button = document.createElement("button")
+            button.textContent = "Click to download: " + file
+            form.appendChild(button)
+
+            body.appendChild(form)
+        })
+
+    }
+
+</script>
+
+</html>

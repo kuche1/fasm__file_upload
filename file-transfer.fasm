@@ -84,9 +84,9 @@ MAX_CONNECTIONS equ 5
 SERVING_THREADS equ 20
 URL_MAXLEN equ 128 ; in bytes
 HEADER_LINE_MAXLEN equ 128 ; in bytes ; TODO currently this is not long enough for the cookies line
-FILE_UPLOAD_TIMEOUT_SEC equ 0
-FILE_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
 FILE_RECV_BUF equ 32 ; in bytes ; this dramatically affects client upload speed
+CLIENT_UPLOAD_TIMEOUT_SEC equ 0
+CLIENT_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: idkman
 
@@ -198,6 +198,7 @@ main:
     ;; returns: dword eax: sockfd
     mov qword [sockfd], rax
 
+    ; make port reusable
     sys_setsockopt [sockfd], SOL_SOCKET, SO_REUSEPORT, one, sizeof_one
     cmp rax, 0
     jge setsockopt_ok
@@ -268,6 +269,11 @@ serving_thread:
 
     mov qword [connfd], rax
 
+    ; set client upload timeout
+    mov [tmp_timeval.tv_sec], CLIENT_UPLOAD_TIMEOUT_SEC
+    mov [tmp_timeval.tv_usec], CLIENT_UPLOAD_TIMEOUT_USEC
+    sys_setsockopt [connfd], SOL_SOCKET, SO_RCVTIMEO, tmp_timeval, tmp_timeval.size
+
     call receive_header
 
     sys_shutdown [connfd], SHUT_RDWR
@@ -309,6 +315,11 @@ receive_header:
         push rcx ; TODO stupid
         sys_read [connfd], tmp_1B, tmp_1B.size
         pop rcx
+
+        ; network error
+        cmp rax, 0
+        jl .url_received
+
         cmp [tmp_1B], ' '
         je .url_received
 
@@ -351,6 +362,9 @@ receive_header:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_request:
+
+    ; not going to check for edge cases since in that case the malicious user
+    ; is going to get a response based on the random bullshit in memory
 
     cmp [url.len], 1
     je .requested_page_main
@@ -530,10 +544,6 @@ handle_script_file_upload:
     ; sys_sendfile [file_send_upload_fd], [connfd], 0, 1
     ; sys_exit rax
 
-    mov [tmp_timeval.tv_sec], FILE_UPLOAD_TIMEOUT_SEC
-    mov [tmp_timeval.tv_usec], FILE_UPLOAD_TIMEOUT_USEC
-    sys_setsockopt [connfd], SOL_SOCKET, SO_RCVTIMEO, tmp_timeval, tmp_timeval.size
-
     handle_script_file_upload.copy_to_file_loop:
 
         sys_read [connfd], file_recv_buf, file_recv_buf.size
@@ -547,11 +557,6 @@ handle_script_file_upload:
     jmp handle_script_file_upload.copy_to_file_loop
 
     handle_script_file_upload.copy_to_file_loop_done:
-
-    ; this can become dangerous once we switch to nonblocking/blocking-with-timeout
-    mov [tmp_timeval.tv_sec], 0
-    mov [tmp_timeval.tv_usec], 0
-    sys_setsockopt [connfd], SOL_SOCKET, SO_RCVTIMEO, tmp_timeval, tmp_timeval.size
 
     ; now we need to delete the last (`multipart_boundary.len` + 7["--"+"--"+"\n19"] + 1?["\r"]) characters
 
@@ -757,6 +762,10 @@ read_next_header_line:
 
         sys_read [connfd], tmp_1B_b, tmp_1B_b.size
 
+        ; network error
+        cmp rax, 0
+        jl read_next_header_line.line_done
+
         cmp [tmp_1B_b], 10 ; \n
         jne read_next_header_line.read_next_byte
         cmp [tmp_1B_a], 13 ; \r
@@ -785,6 +794,10 @@ read_next_header_line:
     read_next_header_line.cut_until_end_of_line:
 
         sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+
+        ; network error
+        cmp rax, 0
+        jl read_next_header_line.line_done
 
         cmp [tmp_1B_b], 10 ; \n
         jne read_next_header_line.discard_next_byte

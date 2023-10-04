@@ -567,6 +567,8 @@ handle_custom_page:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 handle_javascript_ls:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
 
     .get_dir_entries:
 
@@ -621,10 +623,6 @@ handle_javascript_ls:
             ; save filename len
             mov [tmp_8B], rcx
 
-            ; send_html_page_download_button \
-            ;     [connfd], \
-            ;     [tmp_8B_a], \
-            ;     [tmp_8B]
             sys_write [connfd], [tmp_8B_a], [tmp_8B]
             sys_write [connfd], str_nl, str_nl.size
             

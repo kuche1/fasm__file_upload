@@ -361,11 +361,35 @@ handle_request:
     ; not going to check for edge cases since in that case the malicious user
     ; is going to get a response based on the random bullshit in memory
 
+    cmp [method], METHOD_GET
+    je .metod_is_get
+
+    cmp [method], METHOD_POST ; we can save some performance by skipping this cmp
+    je .method_is_post
+
+    jmp .method_is_unknown
+
+    .metod_is_get:
+        call handle_request_get
+        jmp .done
+
+    .method_is_post:
+        call handle_request_post
+        jmp .done
+
+    .method_is_unknown:
+        call handle_page_404
+        jmp .done
+    
+    .done:
+    ret
+
+
     cmp [url.len], 1
     je .requested_page_main
 
     mov rax, url
-    inc rax ; skip past the `/`
+    inc rax ; skip past the `/` ; TODO fuck `inc`
 
     cmp byte [rax], '4'
     je .requested_script_file_upload
@@ -409,6 +433,70 @@ handle_request:
 
     .requested_javascript_ls:
         call handle_javascript_ls
+        jmp .return
+
+    .return:
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_request_get:
+    .begin:
+
+    cmp [url.len], 1
+    jne .no_need_to_fix_request
+        ; not ideal but ok
+        mov byte [url   ], '/'
+        mov byte [url+ 1], 'i'
+        mov byte [url+ 2], 'n'
+        mov byte [url+ 3], 'd'
+        mov byte [url+ 4], 'e'
+        mov byte [url+ 5], 'x'
+        mov byte [url+ 6], '.'
+        mov byte [url+ 7], 'h'
+        mov byte [url+ 8], 't'
+        mov byte [url+ 9], 'm'
+        mov byte [url+10], 'l'
+        mov byte [url+11], 0
+        mov [url.len], 11
+        jmp .begin
+    .no_need_to_fix_request:
+
+    call handle_custom_page
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_request_post:
+
+    ; skip past the `/` in `url`
+
+    cmp byte [url+1], '4'
+    je .requested_script_file_upload
+
+    cmp byte [url+1], '5'
+    je .requested_script_file_download
+
+    cmp byte [url+1], '6'
+    je .requested_javascript_ls
+
+    jmp .invalid_request
+    
+    .requested_script_file_upload:
+        call handle_script_file_upload
+        jmp .return
+
+    .requested_script_file_download:
+        call handle_script_file_download
+        jmp .return
+
+    .requested_javascript_ls:
+        call handle_javascript_ls
+        jmp .return
+
+    .invalid_request:
+        call handle_page_404
         jmp .return
 
     .return:

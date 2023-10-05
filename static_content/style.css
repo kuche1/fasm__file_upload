@@ -1,18 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Gabarito:wght@700&family=Kanit:ital,wght@1,300&display=swap');
-
+/* Font Family */
 *{
   background-color: #1C1B22;
     font-family: 'Gabarito', cursive;
     font-family: 'Kanit', sans-serif;
 }
+
+/* Headers */
 h1{
+  white-space: nowrap;
   color: white;
+  display: flex;
+  justify-content: center;
 }
+/* main body style */
 .wraper{
   color: pink;
   border: 2px groove;
   border-radius: 10px;
-  width: 10em;
+  width: auto;
+  height: auto;
   padding: 3em;
   padding-top: 1.5em;
   position: absolute;
@@ -21,7 +28,7 @@ h1{
   transform: translate(-50%, -50%);
 }
 
-
+/* space between buttons - Main*/
 .buttons{
   display: flex;
   gap: 1em;
@@ -29,12 +36,13 @@ h1{
   justify-content: center;
   align-items: center;
 }
-
-.Upload{
+/* Upload button */
+.Upload{ 
   font-size: 20px;
   background-color:  	#303030;
   color: white;
-  border: 1px dashed #4CAF50; 
+  /* border: 1px dashed #4CAF50;  */
+  border: none;
   border-radius: 3px;
   transition: 0.2s;
   }
@@ -44,18 +52,37 @@ h1{
     border-radius: 3em;
     color: white;
   }
-
+/* Download button */
 .Download{
     font-size: 20px;
-        background-color: #303030;
-        color: white;
-        border: 1px dashed #DA2C38; 
-        border-radius: 3px;
-        transition: 0.2s;
+    background-color: #303030;
+    color: white;
+    /* border: 1px dashed #DA2C38;  */
+    border: none;
+    border-radius: 10px;
+    transition: 0.2s;
+    padding: 6%;
 }
 .Download:hover {
     background-color: #DA2C38;
     color: black; 
     border-radius: 3em;
     color: white;
+  }
+/* space between buttons - Upload*/
+  .cf{
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    justify-content: space-around;
+  }
+
+/* Download list - not working*/
+  .db{
+    border: none;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    align-content: center;
   }

@@ -7,9 +7,9 @@
 
 <body id="body" class="wraper">
     <h1>Download files</h1>
-    <form action="/5~file~" method="post" id="sex">
+    <!-- <form action="/5~file~" method="post" id="sex">
         <button class="db"></button>
-    </form>
+    </form> -->
 </body>
 
 <script>
@@ -41,6 +41,7 @@
 
             let button = document.createElement("button")
             button.textContent = "Click to download: " + file
+            button.className = "Download"
             form.appendChild(button)
 
             body.appendChild(form)

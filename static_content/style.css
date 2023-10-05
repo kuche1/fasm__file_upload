@@ -54,21 +54,38 @@ h1{
   }
 /* Download button */
 .Download{
-    font-size: 20px;
-    background-color: #303030;
-    color: white;
-    /* border: 1px dashed #DA2C38;  */
-    border: none;
-    border-radius: 10px;
-    transition: 0.2s;
-    padding: 6%;
+  font-size: 20px;
+  background-color: #303030;
+  color: white;
+  /* border: 1px dashed #DA2C38;  */
+  border: none;
+  border-radius: 10px;
+  transition: 0.2s;
+  padding: 6%;
 }
 .Download:hover {
-    background-color: #DA2C38;
-    color: black; 
-    border-radius: 3em;
-    color: white;
-  }
+  background-color: #DA2C38;
+  color: black; 
+  border-radius: 3em;
+  color: white;
+}
+/* Download item button */
+.Download_item{
+  font-size: 14px;
+  background-color: #303030;
+  color: white;
+  /* border: 1px dashed #DA2C38;  */
+  border: none;
+  border-radius: 10px;
+  transition: 0.2s;
+  padding: 2%;
+}
+.Download_item:hover {
+  background-color: #DA2C38;
+  color: black; 
+  border-radius: 3em;
+  color: white;
+}
 /* space between buttons - Upload*/
   .cf{
     display: flex;

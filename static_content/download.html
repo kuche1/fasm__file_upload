@@ -40,9 +40,12 @@
             form.method = "post"
 
             let button = document.createElement("button")
-            button.textContent = "Click to download: " + file
-            button.className = "Download"
+            button.textContent = file
+            button.className = "Download_item"
             form.appendChild(button)
+
+            // let p = document.createElement("p")
+            // form.appendChild(p)
 
             body.appendChild(form)
         })

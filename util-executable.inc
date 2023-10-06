@@ -128,7 +128,7 @@ open_folder_read:
     ret
 
 
-read_1B_buf: ; TODO untested
+read_1B_buf:
 ; input:
 ;   rdi - fd
 ;   rsi - buffer (the byte read will be written here)
@@ -179,7 +179,7 @@ read_1B_buf: ; TODO untested
     ret
 
 
-read_buf: ; TODO untested
+read_buf:
 ; input:
 ;   rdi - fd
 ;   rsi - buffer (the bytes read will be written here)
@@ -231,5 +231,47 @@ read_buf: ; TODO untested
     pop read_bytes
 
     restore read_bytes
+
+    ret
+
+
+str_copy:
+; input:
+;   rdi - str dest
+;   rsi - str source
+;   rdx - bytes to copy
+;
+; output:
+;   none
+;
+; trash:
+;   none
+
+    push rax
+    push rdi
+    push rsi
+    push rdx
+
+    .copy_next_byte:
+
+        cmp rdx, 0
+        je .return
+
+        mov al, [rsi]
+        inc rsi
+
+        mov [rdi], al
+        inc rdi
+
+        dec rdx
+
+    jmp .copy_next_byte
+
+    .return:
+
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
 
     ret

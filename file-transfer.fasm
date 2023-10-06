@@ -21,6 +21,8 @@
 ; make it so that you can select multiple files for upload
 ;
 ; make it so that `sys_*` and `fnc*` preserve the arg registers
+;
+; make all lens 8B
 
 ; info
 ;
@@ -449,9 +451,22 @@ handle_script_file_upload:
     call read_next_header_line
     ; the boundary (end of transmission for this file) is now located in header_line and has len of header_line.len
 
-    ; TODO copy header_line to multipart_boundary
+    ; mov rdx, 0
+    ; mov dl, [header_line.len]
+    ; print header_line, rdx
+
+    ; copy content
+    mov rdx, 0
+    mov dl, [header_line.len]
+    fnc888 str_copy, multipart_boundary, header_line, rdx
+
+    ; copy len
     mov al, [header_line.len]
     mov [multipart_boundary.len], al
+
+    ; mov rdx, 0
+    ; mov dl, [multipart_boundary.len]
+    ; print multipart_boundary, rdx
 
     call read_rest_of_header
 

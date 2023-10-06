@@ -45,6 +45,25 @@ cstr_to_uint:
     ret
 
 
+; file_endswith_str:
+; ; input:
+; ;   rdi - fd
+; ;   rsi - str
+; ;   rdx - str size
+; ;
+; ; output:
+; ;   rax
+; ;       0 - false
+; ;       1 - true
+; ;
+; ; trash:
+; ;   none
+
+;     asd
+
+;     ret
+
+
 open_file_read_at:
 ; input:
 ;   rdi - fd of folder that contains file (cstring)
@@ -62,6 +81,37 @@ open_file_read_at:
     mov rdx, O_RDONLY
 
     mov r10, 0
+
+    sys0 SYSCALL_OPENAT
+
+    pop r10
+    pop rdx
+
+    ret
+
+
+open_file_read_write_at:
+; input:
+;   rdi - fd of folder that contains file (cstring)
+;   rsi - file name
+;
+; output:
+;   rax - fd (negative if there was an error)
+;
+; trash:
+;   none
+
+    push rdx
+    push r10
+
+    mov rdx, O_RDWR
+    or rdx, O_CREAT ; bitwise or
+    or rdx, O_TRUNC
+
+    mov r10, S_IRUSR
+    or r10, S_IWUSR
+    or r10, S_IRGRP
+    or r10, S_IROTH
 
     sys0 SYSCALL_OPENAT
 

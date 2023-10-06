@@ -478,7 +478,7 @@ handle_script_file_upload:
     mov byte [rax], 0
 
     fnc88 \
-        open_file_write_at, \
+        open_file_read_write_at, \
         [folder_uploaded_files_fd], \
         file_upload_filename
 

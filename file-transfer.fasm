@@ -269,14 +269,12 @@ serving_thread:
 
 receive_header:
 
-    sys_read [connfd], tmp_4B, tmp_4B.size
+    sys_read [connfd], tmp_1B, tmp_1B.size
 
-    ; print tmp_4B, tmp_4B.size
-
-    cmp [tmp_4B], 'G'
+    cmp [tmp_1B], 'G'
     je .method_get ; assume GET
 
-    ; cmp [tmp_4B], 'P'
+    ; cmp [tmp_1B], 'P'
     jmp .method_post ; assume POST
 
     .method_get:
@@ -284,11 +282,16 @@ receive_header:
         jmp .method_finished
 
     .method_post:
-        sys_read [connfd], tmp_1B, tmp_1B.size ; get rid of ` `
+        sys_read [connfd], tmp_1B, tmp_1B.size
         mov [method], METHOD_POST
         jmp .method_finished
 
     .method_finished:
+
+    ; TODO very bad but will live it like this for now; ideally there should be a discard_3B_buf fnc or something like that
+    sys_read [connfd], tmp_1B, tmp_1B.size
+    sys_read [connfd], tmp_1B, tmp_1B.size
+    sys_read [connfd], tmp_1B, tmp_1B.size
 
     mov rcx, url
     mov [url.len], 0

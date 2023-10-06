@@ -77,7 +77,6 @@ MAX_CONNECTIONS equ 5
 SERVING_THREADS equ 20
 URL_MAXLEN equ 128 ; in bytes
 HEADER_LINE_MAXLEN equ 128 ; in bytes ; TODO currently this is not long enough for the cookies line
-FILE_RECV_BUF equ 32 ; in bytes ; this dramatically affects client upload speed
 CLIENT_UPLOAD_TIMEOUT_SEC equ 0
 CLIENT_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
 CLIENT_DOWNLOAD_TIMEOUT_SEC equ CLIENT_UPLOAD_TIMEOUT_SEC
@@ -484,16 +483,24 @@ handle_script_file_upload:
 
     mov [file_send_upload_fd], rax
 
+
     handle_script_file_upload.copy_to_file_loop:
 
-        net_recv [connfd], file_recv_buf, file_recv_buf.size
+        ; reset circular buffer if needed
+        cmp [file_recv_buf_next_B], file_recv_buf.end
+        jl .no_need_to_reset_circular_buf
+            mov [file_recv_buf_next_B], file_recv_buf.start
+        .no_need_to_reset_circular_buf:
+
+        ; read byte
+        net_recv_1B [connfd], [file_recv_buf_next_B]
         cmp rax, 0
         jle handle_script_file_upload.copy_to_file_loop_done
 
-        ; sys_write [file_send_upload_fd], file_recv_buf, file_recv_buf.size
-        mov rdx, rax
-        sys_write [file_send_upload_fd], file_recv_buf, rdx
-    
+        sys_write [file_send_upload_fd], [file_recv_buf_next_B], 1
+
+        inc [file_recv_buf_next_B]
+
     jmp handle_script_file_upload.copy_to_file_loop
 
     handle_script_file_upload.copy_to_file_loop_done:
@@ -1103,8 +1110,10 @@ folder_static_content db "./static_content", 0
 folder_static_content.size = $ - folder_static_content - 1
 folder_static_content_fd dq 0
 
-file_recv_buf rb FILE_RECV_BUF
-file_recv_buf.size = $ - file_recv_buf
+file_recv_buf.start  rb HEADER_LINE_MAXLEN
+file_recv_buf.end    =  $
+file_recv_buf.idx    8B 0
+file_recv_buf_next_B 8B file_recv_buf.end
 
 
 ; struct timeval {

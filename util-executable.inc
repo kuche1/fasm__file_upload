@@ -47,7 +47,7 @@ cstr_to_uint:
 
 ; file_endswith_str:
 ; ; input:
-; ;   rdi - fd
+; ;   rdi - fd - cursor position might be changed after fnc call
 ; ;   rsi - str
 ; ;   rdx - str size
 ; ;
@@ -59,7 +59,28 @@ cstr_to_uint:
 ; ; trash:
 ; ;   none
 
-;     asd
+;     push rsi
+;     push rdx
+
+;     sys_lseek rdi, 0, SEEK_CUR ; TODO not optimal
+;     ; size of file is now in rax
+
+;     pop rdx
+;     push rdx
+
+;     cmp rax, rdx
+;     jl .false
+
+;     ASDASDASDASDSA
+
+;     .false:
+;         mov rax, 0
+;     jmp .return
+
+;     .return:
+
+;     pop rdx
+;     pop rsi
 
 ;     ret
 

@@ -142,9 +142,6 @@ read_1B_buf: ; TODO untested
 ; trash:
 ;   none
 
-    push rdi
-    push rsi
-
     mov rax, [read_1B_buf.cache_start]
     cmp rax, [read_1B_buf.cache_end]
     je .load_cache_with_next_read
@@ -163,9 +160,11 @@ read_1B_buf: ; TODO untested
 
     .load_cache_with_next_read:
         push rsi
+        push rdx
         mov rsi, read_1B_buf.cache
         mov rdx, READ_1B_BUF.CACHE_SIZE
         sys0 SYSCALL_READ
+        pop rdx
         pop rsi
 
         cmp rax, 0
@@ -177,7 +176,60 @@ read_1B_buf: ; TODO untested
 
     .return:
 
+    ret
+
+
+read_buf: ; TODO untested
+; input:
+;   rdi - fd
+;   rsi - buffer (the bytes read will be written here)
+;   rdx - bytes to read
+;
+; output:
+;   rax
+;       >=0 - amount bytes read
+;       <0  - failure
+;
+; trash:
+;   none
+
+    ; TODO this is REALLY BAD but it will have to do for now
+
+    read_bytes equ rbx
+
+    push read_bytes
+    push rsi
+
+    mov read_bytes, 0
+
+    .read_next_byte_loop:
+
+        cmp rdx, read_bytes
+        je .return
+
+        call read_1B_buf
+        cmp rax, 0
+        jl .read_error
+
+        inc rsi
+        inc read_bytes
+
+    jmp .read_next_byte_loop
+
+    .read_error:
+        cmp read_bytes, 0
+        jg .return ; ignore the error, just return the amount of bytes read
+
+        mov read_bytes, rax ; not optimal but I want to reduce the amount of spaghett
+    jmp .return
+
+    .return:
+
+    mov rax, read_bytes
+
     pop rsi
-    pop rdi
+    pop read_bytes
+
+    restore read_bytes
 
     ret

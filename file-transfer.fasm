@@ -269,7 +269,8 @@ serving_thread:
 
 receive_header:
 
-    sys_read [connfd], tmp_1B, tmp_1B.size
+    ; sys_read [connfd], tmp_1B, tmp_1B.size
+    fnc88 read_1B_buf, [connfd], tmp_1B
 
     cmp [tmp_1B], 'G'
     je .method_get ; assume GET
@@ -282,23 +283,27 @@ receive_header:
         jmp .method_finished
 
     .method_post:
-        sys_read [connfd], tmp_1B, tmp_1B.size
+        ; sys_read [connfd], tmp_1B, tmp_1B.size
+        fnc88 read_1B_buf, [connfd], tmp_1B
         mov [method], METHOD_POST
         jmp .method_finished
 
     .method_finished:
 
     ; TODO very bad but will live it like this for now; ideally there should be a discard_3B_buf fnc or something like that
-    sys_read [connfd], tmp_1B, tmp_1B.size
-    sys_read [connfd], tmp_1B, tmp_1B.size
-    sys_read [connfd], tmp_1B, tmp_1B.size
+    ; sys_read [connfd], tmp_1B, tmp_1B.size
+    ; sys_read [connfd], tmp_1B, tmp_1B.size
+    ; sys_read [connfd], tmp_1B, tmp_1B.size
+    fnc88 read_1B_buf, [connfd], tmp_1B
+    fnc88 read_1B_buf, [connfd], tmp_1B
+    fnc88 read_1B_buf, [connfd], tmp_1B
 
     mov rcx, url
     mov [url.len], 0
 
     .receive_next_byte_from_url:
         push rcx ; TODO stupid
-        sys_read [connfd], tmp_1B, tmp_1B.size
+        fnc88 read_1B_buf, [connfd], tmp_1B
         pop rcx
 
         ; network error
@@ -464,7 +469,8 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop:
 
-        sys_read [connfd], file_recv_buf, file_recv_buf.size
+        ; sys_read [connfd], file_recv_buf, file_recv_buf.size
+        fnc888 read_buf, [connfd], file_recv_buf, file_recv_buf.size
         cmp rax, 0
         jle handle_script_file_upload.copy_to_file_loop_done
 
@@ -762,11 +768,13 @@ read_next_header_line:
 
     mov [header_line.len], 0
 
-    sys_read [connfd], tmp_1B_a, tmp_1B_a.size
+    ; sys_read [connfd], tmp_1B_a, tmp_1B_a.size
+    fnc88 read_1B_buf, [connfd], tmp_1B_a
     
     read_next_header_line.loop:
 
-        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+        ; sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+        fnc88 read_1B_buf, [connfd], tmp_1B_b
 
         ; network error
         cmp rax, 0
@@ -799,7 +807,8 @@ read_next_header_line:
     
     read_next_header_line.cut_until_end_of_line:
 
-        sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+        ; sys_read [connfd], tmp_1B_b, tmp_1B_b.size
+        fnc88 read_1B_buf, [connfd], tmp_1B_b
 
         ; network error
         cmp rax, 0

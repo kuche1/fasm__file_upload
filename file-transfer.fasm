@@ -115,8 +115,13 @@ macro create_tcp_socket {
 }
 
 macro net_recv_1B fd, buf  {
-    ; sys_read fd, buf, 1 ; no cache version
+    ; sys_read fd, buf, 1      ; no cache version
     fnc88 read_1B_buf, fd, buf ; cache version
+}
+
+macro net_recv fd, buf, size {
+    ; sys_read fd, buf, size       ; no cache version
+    fnc888 read_buf, fd, buf, size ; cache version
 }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; code section
@@ -469,8 +474,7 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop:
 
-        ; sys_read [connfd], file_recv_buf, file_recv_buf.size
-        fnc888 read_buf, [connfd], file_recv_buf, file_recv_buf.size
+        net_recv [connfd], file_recv_buf, file_recv_buf.size
         cmp rax, 0
         jle handle_script_file_upload.copy_to_file_loop_done
 

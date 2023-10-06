@@ -486,7 +486,6 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop:
 
-        ; read byte
         net_recv [connfd], file_recv_buf.a, file_recv_buf.a.size
         cmp rax, 0
         jle handle_script_file_upload.copy_to_file_loop_done

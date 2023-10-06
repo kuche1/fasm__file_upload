@@ -326,8 +326,8 @@ str_indexof:
 ; input:
 ;   rdi - str to search in
 ;   rsi - str to search in size
-;   rdx - str to find
-;   r10 - str to find size
+;   rdx - substr
+;   r10 - substr size
 ;
 ; output:
 ;   rax
@@ -337,37 +337,124 @@ str_indexof:
 ; trash:
 ;   none
 
-    push rdi
-    push rdx
+    str equ rdi
+    str_len equ rsi
+    substr equ rdx
+    substr_len equ r10
+    cur_idx equ r11
+    c2 equ r12b
+    c2_reg equ r12
 
-    cmp rdi, rdx
-    jl .substr_wasnt_found
+    push str
+    push str_len
+    push cur_idx
+    push c2_reg
+    push substr
+    push substr_len
 
-    mov [str_indexof.chars_left], rdx
+    mov cur_idx, 0
+    mov c2, [substr]
 
-    .cmp_byte_loop:
-        cmp [str_indexof.chars_left], 0
-        je .substr_was_found
+    ; do that for later
+    inc substr
+    dec substr_len
 
-        ; compare next char
-        mov al, [rdi]
-        cmp al, [rdx]
-        jne .substr_wasnt_found
+    .cmp_next_byte:
 
-        dec [str_indexof.chars_left]
-    jmp .cmp_byte_loop
+        cmp str_len, substr_len
+        jl .return_false
 
-    .substr_wasnt_found:
+        mov al, [str]
+        inc str
+        dec str_len
+
+        cmp al, c2
+        jne .not_equal
+
+        .not_equal:
+            call str_startswith
+            cmp rax, 0
+            je .nothing_found
+                mov rax, cur_idx
+                jmp .return
+            .nothing_found:
+        inc cur_idx
+
+    jmp .cmp_next_byte
+
+    .return_false:
         mov rax, -1
-        jmp .return
-
-    .substr_was_found:
-        mov rax, rsi
-        sub rsi, [str_indexof.chars_left]
         jmp .return
 
     .return:
 
+    pop substr_len
+    pop substr
+    pop c2_reg
+    pop cur_idx
+    pop str_len
+    pop str
+
+    restore str
+    restore str_len
+    restore substr
+    restore substr_len
+    restore cur_idx
+
+    ret
+
+
+str_startswith:
+; input:
+;   rdi - str
+;   rsi - str size
+;   rdx - substr
+;   r10 - substr size
+;
+; output:
+;   rax
+;       0 - no
+;       1 - yes
+;
+; trash:
+;   none
+
+    push rdi ; TODO see if syntax `push a,b,c` works
+    push rdx
+    push r10
+
+    cmp rsi, r10
+    jl .doesnt_start_with
+
+    .cmp_next_byte:
+
+        cmp r10, 0
+        jle .does_start_with
+
+        mov al, [rdi]
+        inc rdi
+
+        mov ah, [rdx]
+        inc rdx
+
+        cmp ah, al
+        jne .doesnt_start_with
+
+        dec r10
+
+    jmp .cmp_next_byte
+
+    .doesnt_start_with:
+        mov rax, 0
+        jmp .return
+
+    .does_start_with:
+        mov rax, 1
+        jmp .return
+
+    .return:
+
+    pop r10
     pop rdx
     pop rdi
 

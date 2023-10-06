@@ -32,6 +32,11 @@ macro fnc888 name, arg1, arg2, arg3 {
     fnc88 name, arg1, arg2
 }
 
+macro fnc8888 name, arg1, arg2, arg3, arg4 {
+    mov r10, arg4
+    fnc888 name, arg1, arg2, arg3
+}
+
 macro fnc818188 name, arg1, arg2, arg3, arg4, arg5, arg6 {
     mov r9, arg6
     mov r8, arg5

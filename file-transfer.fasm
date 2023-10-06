@@ -502,6 +502,29 @@ handle_script_file_upload:
         sub [file_recv_buf.free], rax
         add [file_recv_buf.start], rax
 
+        mov [tmp_8B_a], file_recv_buf.size ; TODO not ideal
+        mov rax, [file_recv_buf.free]
+        sub [tmp_8B_a], rax
+        mov r10, 0 ; TODO not ideal
+        mov r10b, [multipart_boundary.len]
+
+        fnc8888 \
+            str_indexof, \
+            file_recv_buf, [tmp_8B_a], \
+            multipart_boundary, r10
+
+        cmp rax, 0
+        jl .substr_not_found
+            ; get offset
+            mov [tmp_8B], rax
+            dec [tmp_8B] ; TODO don't know why we have to decrease this by 2 (perhaps because the end really is NL+NL+boundary)
+            dec [tmp_8B]
+            ; write the good part
+            sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
+            ; the fuck off ; TODO don't ignore the rest
+            jmp handle_script_file_upload.copy_to_file_loop_done
+        .substr_not_found:
+
         cmp [file_recv_buf.free], 0
         jne .buf_not_full
             sys_write [file_send_upload_fd], file_recv_buf, file_recv_buf.size
@@ -514,18 +537,18 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop_done:
 
-    ; now we need to delete the last (`multipart_boundary.len` + 5["--"+"\n19"] + 1?["\r"]) characters
+    ; ; now we need to delete the last (`multipart_boundary.len` + 5["--"+"\n19"] + 1?["\r"]) characters
 
-    sys_lseek [file_send_upload_fd], 0, SEEK_CUR
-    mov [tmp_8B], rax ; current offset
+    ; sys_lseek [file_send_upload_fd], 0, SEEK_CUR
+    ; mov [tmp_8B], rax ; current offset
 
-    ; calc new size
-    mov rcx, 0
-    mov cl, [multipart_boundary.len]
-    sub [tmp_8B], rcx
-    sub [tmp_8B], 6
+    ; ; calc new size
+    ; mov rcx, 0
+    ; mov cl, [multipart_boundary.len]
+    ; sub [tmp_8B], rcx
+    ; sub [tmp_8B], 6
 
-    sys_ftruncate [file_send_upload_fd], [tmp_8B]
+    ; sys_ftruncate [file_send_upload_fd], [tmp_8B]
 
     sys_close [file_send_upload_fd]
 

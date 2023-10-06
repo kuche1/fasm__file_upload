@@ -3,6 +3,22 @@ include "linux-comptime.inc"
 include "util-comptime.inc"
 
 
+; circularstr_equ_str:
+
+;     circularstr_start = circular.idx - str.len
+;     if(curcular_start < circular.start){
+;         circular_start += circular.size
+;     }
+
+;     c1 = [circular_start]
+;     circular_start = (circular_start + 1) % size
+
+;     c2 = [str]
+;     str += 1
+
+;     ret
+
+
 cstr_to_uint:
 ; input:
 ;   rdi - cstring
@@ -302,6 +318,38 @@ read_buf:
     pop read_bytes
 
     restore read_bytes
+
+    ret
+
+
+str_clear:
+; input:
+;   rdi - str
+;   rsi - size
+;
+; output:
+;   none
+;
+; trash:
+;   none
+
+    push rdi
+    push rsi
+
+    .clear_next_byte:
+
+        cmp rsi, 0
+        je .return
+
+        mov byte [rdi], 0
+        inc rdi
+
+    jmp .clear_next_byte
+
+    .return:
+
+    pop rsi
+    pop rdi
 
     ret
 

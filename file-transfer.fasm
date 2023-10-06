@@ -486,20 +486,13 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop:
 
-        ; reset circular buffer if needed
-        cmp [file_recv_buf_next_B], file_recv_buf.end
-        jl .no_need_to_reset_circular_buf
-            mov [file_recv_buf_next_B], file_recv_buf.start
-        .no_need_to_reset_circular_buf:
-
         ; read byte
-        net_recv_1B [connfd], [file_recv_buf_next_B]
+        net_recv [connfd], file_recv_buf.a, file_recv_buf.a.size
         cmp rax, 0
         jle handle_script_file_upload.copy_to_file_loop_done
 
-        sys_write [file_send_upload_fd], [file_recv_buf_next_B], 1
-
-        inc [file_recv_buf_next_B]
+        mov [tmp_8B], rax
+        sys_write [file_send_upload_fd], file_recv_buf.a, [tmp_8B]
 
     jmp handle_script_file_upload.copy_to_file_loop
 
@@ -1110,10 +1103,10 @@ folder_static_content db "./static_content", 0
 folder_static_content.size = $ - folder_static_content - 1
 folder_static_content_fd dq 0
 
-file_recv_buf.start  rb HEADER_LINE_MAXLEN
-file_recv_buf.end    =  $
-file_recv_buf.idx    8B 0
-file_recv_buf_next_B 8B file_recv_buf.end
+file_recv_buf.a      rb HEADER_LINE_MAXLEN
+file_recv_buf.a.size =  $ - file_recv_buf.a
+file_recv_buf.b      rb HEADER_LINE_MAXLEN 
+file_recv_buf.b.size =  $ - file_recv_buf.b
 
 
 ; struct timeval {

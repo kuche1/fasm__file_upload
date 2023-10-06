@@ -322,6 +322,58 @@ read_buf:
     ret
 
 
+str_indexof:
+; input:
+;   rdi - str to search in
+;   rsi - str to search in size
+;   rdx - str to find
+;   r10 - str to find size
+;
+; output:
+;   rax
+;       >=0 - index of substr in str
+;       <0  - substr cannot be found in str
+;
+; trash:
+;   none
+
+    push rdi
+    push rdx
+
+    cmp rdi, rdx
+    jl .substr_wasnt_found
+
+    mov [str_indexof.chars_left], rdx
+
+    .cmp_byte_loop:
+        cmp [str_indexof.chars_left], 0
+        je .substr_was_found
+
+        ; compare next char
+        mov al, [rdi]
+        cmp al, [rdx]
+        jne .substr_wasnt_found
+
+        dec [str_indexof.chars_left]
+    jmp .cmp_byte_loop
+
+    .substr_wasnt_found:
+        mov rax, -1
+        jmp .return
+
+    .substr_was_found:
+        mov rax, rsi
+        sub rsi, [str_indexof.chars_left]
+        jmp .return
+
+    .return:
+
+    pop rdx
+    pop rdi
+
+    ret
+
+
 str_clear:
 ; input:
 ;   rdi - str

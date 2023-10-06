@@ -483,15 +483,32 @@ handle_script_file_upload:
 
     mov [file_send_upload_fd], rax
 
+    mov [file_recv_buf.free], file_recv_buf.size
+    mov [file_recv_buf.start], file_recv_buf
 
     handle_script_file_upload.copy_to_file_loop:
 
-        net_recv [connfd], file_recv_buf.a, file_recv_buf.a.size
+        net_recv [connfd], [file_recv_buf.start], [file_recv_buf.free]
         cmp rax, 0
-        jle handle_script_file_upload.copy_to_file_loop_done
+        jg .recv_ok
+            ; finish writing
+            mov [tmp_8B], file_recv_buf.size
+            mov rax, [file_recv_buf.free]
+            sub [tmp_8B], rax
+            sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
+            jmp handle_script_file_upload.copy_to_file_loop_done
+        .recv_ok:
 
-        mov [tmp_8B], rax
-        sys_write [file_send_upload_fd], file_recv_buf.a, [tmp_8B]
+        sub [file_recv_buf.free], rax
+        add [file_recv_buf.start], rax
+
+        cmp [file_recv_buf.free], 0
+        jne .buf_not_full
+            sys_write [file_send_upload_fd], file_recv_buf, file_recv_buf.size
+
+            mov [file_recv_buf.free], file_recv_buf.size
+            mov [file_recv_buf.start], file_recv_buf
+        .buf_not_full:
 
     jmp handle_script_file_upload.copy_to_file_loop
 
@@ -1102,10 +1119,10 @@ folder_static_content db "./static_content", 0
 folder_static_content.size = $ - folder_static_content - 1
 folder_static_content_fd dq 0
 
-file_recv_buf.a      rb HEADER_LINE_MAXLEN ; must be enough for a `multipart_boundary`
-file_recv_buf.a.size =  $ - file_recv_buf.a
-file_recv_buf.b      rb HEADER_LINE_MAXLEN 
-file_recv_buf.b.size =  $ - file_recv_buf.b
+file_recv_buf        rb  (HEADER_LINE_MAXLEN*2) ; must be enough for 2*`multipart_boundary`
+file_recv_buf.size   =   $ - file_recv_buf
+file_recv_buf.free   8B  file_recv_buf.size
+file_recv_buf.start  8B  file_recv_buf
 
 
 ; struct timeval {

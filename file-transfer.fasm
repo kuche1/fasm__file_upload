@@ -337,15 +337,10 @@ receive_header:
     mov dl, [url.len]
     print url, rdx
 
-    mov [multipart_boundary.len], 0
     mov [file_upload_filename.len], 0
     call read_rest_of_header
 
     ; ; len would be 0 if it was not found
-    ; mov rdx, 0
-    ; mov dl, [multipart_boundary.len]
-    ; print multipart_boundary, rdx
-
     ; mov rdx, 0
     ; mov dl, [file_upload_filename.len]
     ; print file_upload_filename, rdx
@@ -451,6 +446,13 @@ handle_script_file_upload:
     sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_end, str_http_header_end.size
 
+    call read_next_header_line
+    ; the boundary (end of transmission for this file) is now located in header_line and has len of header_line.len
+
+    ; TODO copy header_line to multipart_boundary
+    mov al, [header_line.len]
+    mov [multipart_boundary.len], al
+
     call read_rest_of_header
 
     ; make sure there's a 0 at the end of the filename (we DO have enough mem in buf)
@@ -467,11 +469,6 @@ handle_script_file_upload:
 
     mov [file_send_upload_fd], rax
 
-    ; ; mov [tmp_8B], 0
-    ; ; sys_sendfile [file_send_upload_fd], [connfd], tmp_8B, 1
-    ; sys_sendfile [file_send_upload_fd], [connfd], 0, 1
-    ; sys_exit rax
-
     handle_script_file_upload.copy_to_file_loop:
 
         net_recv [connfd], file_recv_buf, file_recv_buf.size
@@ -486,7 +483,7 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop_done:
 
-    ; now we need to delete the last (`multipart_boundary.len` + 7["--"+"--"+"\n19"] + 1?["\r"]) characters
+    ; now we need to delete the last (`multipart_boundary.len` + 5["--"+"\n19"] + 1?["\r"]) characters
 
     sys_lseek [file_send_upload_fd], 0, SEEK_CUR
     mov [tmp_8B], rax ; current offset
@@ -495,7 +492,7 @@ handle_script_file_upload:
     mov rcx, 0
     mov cl, [multipart_boundary.len]
     sub [tmp_8B], rcx
-    sub [tmp_8B], 8
+    sub [tmp_8B], 6
 
     sys_ftruncate [file_send_upload_fd], [tmp_8B]
 
@@ -686,6 +683,7 @@ handle_javascript_ls:
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
 
 read_rest_of_header:
+    print str_reading_header, str_reading_header.size
 
     read_rest_of_header.read_next_line:
 
@@ -697,16 +695,6 @@ read_rest_of_header:
 
         cmp [header_line.len], 0
         je read_rest_of_header.return
-
-
-        fnc818188 \
-            extract_header_field, \
-            str_header_line_multipart_boundary, \
-            str_header_line_multipart_boundary.size, \
-            header_line, \
-            [header_line.len], \
-            multipart_boundary, \
-            multipart_boundary.len
 
 
         fnc818188 \
@@ -761,6 +749,9 @@ read_rest_of_header:
     jmp read_rest_of_header.read_next_line
     
     read_rest_of_header.return:
+
+    print str_reading_header_done, str_reading_header_done.size
+
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; fnc
@@ -1023,6 +1014,14 @@ str_header_line_multipart_boundary.size = $ - str_header_line_multipart_boundary
 str_header_line_file_upload_filename db 'Content-Disposition: form-data; name="file"; filename="'
 ; Content-Disposition: form-data; name="file"; filename="todo-hoi4mod"
 str_header_line_file_upload_filename.size = $ - str_header_line_file_upload_filename
+
+
+str_reading_header      1B "=============== read header begin"
+str_reading_header.size = $ - str_reading_header
+
+str_reading_header_done 1B "=============== read header end"
+str_reading_header_done.size = $ - str_reading_header_done
+
 
 ;;;;;;;; other
 

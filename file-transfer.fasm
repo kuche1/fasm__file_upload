@@ -20,7 +20,7 @@
 ;
 ; make it so that you can select multiple files for upload
 ;
-; make proper use of GET and POST
+; make it so that `sys_*` and `fnc*` preserve the arg registers
 
 ; info
 ;

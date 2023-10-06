@@ -1,44 +1,21 @@
 
-; macro fnc0 name
-; {
-;     call name
-; }
+; https://flatassembler.net/docs.php?article=manual#1.2.1
 
-; macro fnc1 name, arg1
-; {
-;     mov rdi, arg1
-;     fnc0 name
-; }
+1B equ db
+2B equ dw
+4B equ dd
+8B equ dq
 
-; macro fnc2 name, arg1, arg2
-; {
-;     mov rsi, arg2
-;     fnc1 name, arg1
-; }
+1byte equ byte
+2bytes equ word
+4bytes equ dword ; double word
+8bytes equ qword ; quad word
 
-; macro fnc3 name, arg1, arg2, arg3
-; {
-;     mov rdx, arg3
-;     fnc2 name, arg1, arg2
-; }
+r1B equ rb
 
-; macro fnc4 name, arg1, arg2, arg3, arg4
-; {
-;     mov r10, arg4
-;     fnc3 name, arg1, arg2, arg3
-; }
 
-; macro fnc5 name, arg1, arg2, arg3, arg4, arg5
-; {
-;     mov r8, arg5
-;     fnc4 name, arg1, arg2, arg3, arg4
-; }
+READ_1B_BUF.CACHE_SIZE equ 32 ; in bytes
 
-; macro fnc6 name, arg1, arg2, arg3, arg4, arg5, arg6
-; {
-;     mov r9, arg6
-;     fnc5 name, arg1, arg2, arg3, arg4, arg5
-; }
 
 macro fnc8 name, arg1 {
     mov rdi, arg1

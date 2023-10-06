@@ -126,3 +126,58 @@ open_folder_read:
     pop rsi
 
     ret
+
+
+read_1B_buf: ; TODO untested
+; input:
+;   rdi - fd
+;   rsi - buffer (the byte read will be written here)
+;
+; output:
+;   rax
+;       >1  - will never happen
+;       1   - success
+;       <=0 - failure
+;
+; trash:
+;   none
+
+    push rdi
+    push rsi
+
+    mov rax, [read_1B_buf.cache_start]
+    cmp rax, [read_1B_buf.cache_end]
+    je .load_cache_with_next_read
+
+    .extract_next_char_from_cache:
+        mov rax, read_1B_buf.cache
+        add rax, [read_1B_buf.cache_start]
+
+        mov al, [rax]
+        mov [rsi], al
+
+        inc [read_1B_buf.cache_start]
+
+        mov rax, 1
+        jmp .return
+
+    .load_cache_with_next_read:
+        push rsi
+        mov rsi, read_1B_buf.cache
+        mov rdx, READ_1B_BUF.CACHE_SIZE
+        sys0 SYSCALL_READ
+        pop rsi
+
+        cmp rax, 0
+        jle .return
+
+        mov [read_1B_buf.cache_end], rax
+        mov [read_1B_buf.cache_start], 0
+    jmp .extract_next_char_from_cache
+
+    .return:
+
+    pop rsi
+    pop rdi
+
+    ret

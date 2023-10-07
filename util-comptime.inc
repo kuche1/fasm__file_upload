@@ -37,12 +37,12 @@ macro fnc8888 name, arg1, arg2, arg3, arg4 {
     fnc888 name, arg1, arg2, arg3
 }
 
-macro fnc818888 name, arg1, arg2, arg3, arg4, arg5, arg6 {
+macro fnc888888 name, arg1, arg2, arg3, arg4, arg5, arg6 {
     mov r9, arg6
     mov r8, arg5
     mov r10, arg4
     mov rdx, arg3
-    mov sil, arg2
+    mov rsi, arg2
     mov rdi, arg1
     call name
 }

@@ -633,7 +633,7 @@ handle_script_file_upload:
             sub rax, [file_recv_buf.free]
             mov [tmp_8B], rax
 
-            fnc818888 \
+            fnc888888 \
                 extract_header_field, \
                 str_header_line_file_upload_filename, \
                 str_header_line_file_upload_filename.size, \
@@ -946,7 +946,7 @@ read_rest_of_header:
         je read_rest_of_header.return
 
 
-        fnc818888 \
+        fnc888888 \
             extract_header_field, \
             str_header_line_file_upload_filename, \
             str_header_line_file_upload_filename.size, \
@@ -1079,12 +1079,12 @@ read_next_header_line:
 
 extract_header_field:
 ; input:
-;   rdi - rdi 8B - prefix
-;   rsi - sil 1B - prefix_len
-;   rdx - rdx 8B - header_line
-;   r10 - r10 8B - header_line_len
-;   r8  - r8  8B - resulting_data - result will be written here (where this points)
-;   r9  - r9  8B - resulting_data_len - result will be written here (where this point)
+;   rdi - prefix
+;   rsi - prefix_len
+;   rdx - header_line
+;   r10 - header_line_len
+;   r8  - resulting_data - result will be written here (where this points)
+;   r9  - resulting_data_len - result will be written here (where this point)
 ;
 ; output:
 ;   returns in rax
@@ -1097,7 +1097,7 @@ extract_header_field:
     push r15
 
     prefix equ rdi
-    prefix_len equ sil
+    prefix_len equ rsi
     header_line equ [extract_header_field.stack.header_line]
     header_line_len equ [extract_header_field.stack.header_line_len]
     resulting_data equ r8
@@ -1110,8 +1110,7 @@ extract_header_field:
     ; check for the multipart boundary
 
     ; mov dl, prefix_len
-    mov r14, 0
-    mov r14b, prefix_len
+    mov r14, prefix_len
 
     ; mov dh, header_line_len
     mov r15, header_line_len
@@ -1150,8 +1149,7 @@ extract_header_field:
     .found_boundary_line:
 
         ; mov dl, prefix_len
-        mov r14, 0
-        mov r14b, prefix_len
+        mov r14, prefix_len
 
         ; mov dh, header_line_len
         mov r15, header_line_len

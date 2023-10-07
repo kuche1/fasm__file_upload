@@ -17,27 +17,27 @@ r1B equ rb
 READ_1B_BUF.CACHE_SIZE equ 32 ; in bytes
 
 
-macro fnc8 name, arg1 {
+macro fnc1 name, arg1 {
     mov rdi, arg1
     call name
 }
 
-macro fnc88 name, arg1, arg2 {
+macro fnc2 name, arg1, arg2 {
     mov rsi, arg2
-    fnc8 name, arg1
+    fnc1 name, arg1
 }
 
-macro fnc888 name, arg1, arg2, arg3 {
+macro fnc3 name, arg1, arg2, arg3 {
     mov rdx, arg3
-    fnc88 name, arg1, arg2
+    fnc2 name, arg1, arg2
 }
 
-macro fnc8888 name, arg1, arg2, arg3, arg4 {
+macro fnc4 name, arg1, arg2, arg3, arg4 {
     mov r10, arg4
-    fnc888 name, arg1, arg2, arg3
+    fnc3 name, arg1, arg2, arg3
 }
 
-macro fnc888888 name, arg1, arg2, arg3, arg4, arg5, arg6 {
+macro fnc6 name, arg1, arg2, arg3, arg4, arg5, arg6 {
     mov r9, arg6
     mov r8, arg5
     mov r10, arg4

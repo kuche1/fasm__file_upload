@@ -117,12 +117,12 @@ macro create_tcp_socket {
 
 macro net_recv_1B fd, buf  {
     ; sys_read fd, buf, 1      ; no cache version
-    fnc88 read_1B_buf, fd, buf ; cache version
+    fnc2 read_1B_buf, fd, buf ; cache version
 }
 
 macro net_recv fd, buf, size {
     ; sys_read fd, buf, size       ; no cache version
-    fnc888 read_buf, fd, buf, size ; cache version
+    fnc3 read_buf, fd, buf, size ; cache version
 }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;; code section
@@ -152,11 +152,11 @@ main:
 
     pop [arg1] ; port as cstring
 
-    fnc8 cstr_to_uint, [arg1]
+    fnc1 cstr_to_uint, [arg1]
     mov [arg_port], ax
 
 
-    fnc8 \
+    fnc1 \
         open_folder_read, \
         folder_static_content
 
@@ -169,7 +169,7 @@ main:
     .folder_static_content_ok:
 
 
-    fnc8 \
+    fnc1 \
         open_folder_read, \
         folder_uploaded_files
 
@@ -459,7 +459,7 @@ handle_script_file_upload:
 
     ; copy content
     mov rdx, [header_line.len]
-    fnc888 str_copy, multipart_boundary, header_line, rdx
+    fnc3 str_copy, multipart_boundary, header_line, rdx
 
     ; copy len
     mov rax, [header_line.len]
@@ -479,7 +479,7 @@ handle_script_file_upload:
     add rax, rbx
     mov byte [rax], 0
 
-    fnc88 \
+    fnc2 \
         open_file_read_write_at, \
         [folder_uploaded_files_fd], \
         file_upload_filename
@@ -511,7 +511,7 @@ handle_script_file_upload:
         mov r10, [multipart_boundary.len]
         add r10, multipart_boundary_nl_pref.size
 
-        fnc8888 \
+        fnc4 \
             str_indexof, \
             file_recv_buf, [tmp_8B_a], \
             multipart_boundary_inc_nl_pref, r10
@@ -551,7 +551,7 @@ handle_script_file_upload:
             sub [tmp_8B_b], rax
             sub [tmp_8B_b], multipart_boundary_nl_pref.size
 
-            fnc888 \
+            fnc3 \
                 str_copy, \
                 file_recv_buf, [tmp_8B_a], \
                 [tmp_8B_b]
@@ -575,7 +575,7 @@ handle_script_file_upload:
 
             ; check if this is the last item
 
-            fnc8888 \
+            fnc4 \
                 str_startswith, \
                 file_recv_buf, [tmp_8B_b], \
                 multipart_end_of_transmission, multipart_end_of_transmission.size
@@ -598,7 +598,7 @@ handle_script_file_upload:
             sub [tmp_8B_b], rax
             sub [tmp_8B_b], 2
 
-            fnc888 \
+            fnc3 \
                 str_copy, \
                 file_recv_buf, [tmp_8B_a], \
                 [tmp_8B_b]
@@ -616,7 +616,7 @@ handle_script_file_upload:
             ; print file_recv_buf, [tmp_8B_c]
             ; sys_exit 71
 
-            fnc88 \
+            fnc2 \
                 recv_until_end_of_header_line, \
                 [file_recv_buf.start], file_recv_buf.free
 
@@ -633,7 +633,7 @@ handle_script_file_upload:
             sub rax, [file_recv_buf.free]
             mov [tmp_8B], rax
 
-            fnc888888 \
+            fnc6 \
                 extract_header_field, \
                 str_header_line_file_upload_filename, \
                 str_header_line_file_upload_filename.size, \
@@ -668,7 +668,7 @@ handle_script_file_upload:
             sys_write [file_send_upload_fd], file_recv_buf.a, file_recv_buf.a.size
 
             ; TODO would be better if we simply swapped pointers (or would it?)
-            fnc888 \
+            fnc3 \
                 str_copy, \
                 file_recv_buf.a, file_recv_buf.b, \
                 file_recv_buf.a.size
@@ -755,7 +755,7 @@ handle_page_404:
 
 handle_custom_page:
 
-    fnc88 \
+    fnc2 \
         open_file_read_at, \
         [folder_static_content_fd], \
         (url+1) ; skip the `/`
@@ -946,7 +946,7 @@ read_rest_of_header:
         je read_rest_of_header.return
 
 
-        fnc888888 \
+        fnc6 \
             extract_header_field, \
             str_header_line_file_upload_filename, \
             str_header_line_file_upload_filename.size, \

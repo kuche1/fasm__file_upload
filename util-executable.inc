@@ -215,6 +215,22 @@ open_folder_read:
     ret
 
 
+read_1B_buf.reset_cache:
+; input:
+;   none
+;
+; output:
+;   none
+;
+; trash:
+;   none
+
+    mov [read_1B_buf.cache_start], 0
+    mov [read_1B_buf.cache_end], 0
+
+    ret
+
+
 read_1B_buf:
 ; input:
 ;   rdi - fd

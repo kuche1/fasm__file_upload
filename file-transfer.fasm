@@ -475,8 +475,7 @@ handle_script_file_upload:
     call read_rest_of_header
 
     ; make sure there's a 0 at the end of the filename (we DO have enough mem in buf)
-    mov rbx, 0
-    mov bl, [file_upload_filename.len]
+    mov rbx, [file_upload_filename.len]
     mov rax, file_upload_filename
     add rax, rbx
     mov byte [rax], 0
@@ -651,14 +650,13 @@ handle_script_file_upload:
                 file_upload_filename.len
 
             ; get eid of the stupid `"`
-            mov al, [file_upload_filename.len]
-            dec al
-            mov [file_upload_filename.len], al
+            mov rax, [file_upload_filename.len]
+            dec rax
+            mov [file_upload_filename.len], rax
 
             ; put 0 at the end
-            mov rax, 0
-            mov al, [file_upload_filename.len]
-            add rax, file_upload_filename
+            mov rax, file_upload_filename
+            add rax, [file_upload_filename.len]
             mov byte [rax], 0
 
             ; mov rax, 0
@@ -1348,7 +1346,7 @@ file_upload_filename 1B 0
 rept (HEADER_LINE_MAXLEN-1) {
     1B 0
 }
-file_upload_filename.len 1B 0
+file_upload_filename.len 8B 0
 
 
 file_send_upload_fd dq 0

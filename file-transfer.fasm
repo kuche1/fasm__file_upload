@@ -491,7 +491,7 @@ handle_script_file_upload:
         net_recv [connfd], [file_recv_buf.start], [file_recv_buf.free]
         cmp rax, 0
         jg .recv_ok
-            ; finish writing
+            ; finish writing ; TODO what about the separator - it might have been interrupted halfway, it's probably best if we cut (separator.len) characters
             mov [tmp_8B], file_recv_buf.size
             mov rax, [file_recv_buf.free]
             sub [tmp_8B], rax
@@ -517,20 +517,25 @@ handle_script_file_upload:
         jl .substr_not_found
             ; get offset
             mov [tmp_8B], rax
-            dec [tmp_8B] ; TODO don't know why we have to decrease this by 2 (perhaps because the end really is NL+NL+boundary)
-            dec [tmp_8B]
+            sub [tmp_8B], 2 ; we have to decrease this by 2 (perhaps because the end really is \n+\r+boundary)
             ; write the good part
             sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
-            ; the fuck off ; TODO don't ignore the rest
+            ; then fuck off ; TODO don't ignore the rest
             jmp handle_script_file_upload.copy_to_file_loop_done
         .substr_not_found:
 
         cmp [file_recv_buf.free], 0
         jne .buf_not_full
-            sys_write [file_send_upload_fd], file_recv_buf, file_recv_buf.size
+            sys_write [file_send_upload_fd], file_recv_buf.a, file_recv_buf.a.size
 
-            mov [file_recv_buf.free], file_recv_buf.size
-            mov [file_recv_buf.start], file_recv_buf
+            ; TODO would be better if we simply swapped pointers (or would it?)
+            fnc888 \
+                str_copy, \
+                file_recv_buf.a, file_recv_buf.b, \
+                file_recv_buf.a.size
+
+            mov [file_recv_buf.free], file_recv_buf.b.size
+            mov [file_recv_buf.start], file_recv_buf.b
         .buf_not_full:
 
     jmp handle_script_file_upload.copy_to_file_loop
@@ -1142,7 +1147,11 @@ folder_static_content db "./static_content", 0
 folder_static_content.size = $ - folder_static_content - 1
 folder_static_content_fd dq 0
 
-file_recv_buf        rb  (HEADER_LINE_MAXLEN*2) ; must be enough for 2*`multipart_boundary`
+file_recv_buf        =   file_recv_buf.a
+    file_recv_buf.a      rb  HEADER_LINE_MAXLEN ; must be enough for `multipart_boundary`
+    file_recv_buf.a.size =   $ - file_recv_buf.a
+    file_recv_buf.b      rb  HEADER_LINE_MAXLEN ; must be enough for `multipart_boundary`
+    file_recv_buf.b.size =   $ - file_recv_buf.b
 file_recv_buf.size   =   $ - file_recv_buf
 file_recv_buf.free   8B  file_recv_buf.size
 file_recv_buf.start  8B  file_recv_buf

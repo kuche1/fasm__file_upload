@@ -458,13 +458,12 @@ handle_script_file_upload:
     ; print header_line, rdx
 
     ; copy content
-    mov rdx, 0
-    mov dl, [header_line.len]
+    mov rdx, [header_line.len]
     fnc888 str_copy, multipart_boundary, header_line, rdx
 
     ; copy len
-    mov al, [header_line.len]
-    mov [multipart_boundary.len], al
+    mov rax, [header_line.len]
+    mov [multipart_boundary.len], rax
 
     ; mov rdx, 0
     ; mov dl, [multipart_boundary.len]
@@ -509,8 +508,7 @@ handle_script_file_upload:
         mov [tmp_8B_a], file_recv_buf.size ; TODO not ideal
         mov rax, [file_recv_buf.free]
         sub [tmp_8B_a], rax
-        mov r10, 0 ; TODO not ideal
-        mov r10b, [multipart_boundary.len]
+        mov r10, [multipart_boundary.len]
         add r10, multipart_boundary_nl_pref.size
 
         fnc8888 \
@@ -539,8 +537,7 @@ handle_script_file_upload:
             mov [tmp_8B_a], file_recv_buf
             mov rax, [tmp_8B]
             add [tmp_8B_a], rax
-            mov rax, 0
-            mov al, [multipart_boundary.len]
+            mov rax, [multipart_boundary.len]
             add [tmp_8B_a], rax
             add [tmp_8B_a], multipart_boundary_nl_pref.size
 
@@ -550,8 +547,7 @@ handle_script_file_upload:
             sub [tmp_8B_b], rax
             mov rax, [tmp_8B]
             sub [tmp_8B_b], rax
-            mov rax, 0
-            mov al, [multipart_boundary.len]
+            mov rax, [multipart_boundary.len]
             sub [tmp_8B_b], rax
             sub [tmp_8B_b], multipart_boundary_nl_pref.size
 
@@ -633,19 +629,16 @@ handle_script_file_upload:
             ; print file_recv_buf, [tmp_8B_c]
             ; sys_exit 72
 
-            ; TODO this is absolutely idiotic
-            ; the idiotic 1B lengths need to be fixed
             mov rax, file_recv_buf.size
             sub rax, [file_recv_buf.free]
-            ; TODO now pray to god that the size can be fit into 1B
-            mov [tmp_1B], al
+            mov [tmp_8B], rax
 
-            fnc818188 \
+            fnc818888 \
                 extract_header_field, \
                 str_header_line_file_upload_filename, \
                 str_header_line_file_upload_filename.size, \
                 file_recv_buf, \
-                [tmp_1B], \
+                [tmp_8B], \
                 file_upload_filename, \
                 file_upload_filename.len
 
@@ -946,15 +939,14 @@ read_rest_of_header:
 
         call read_next_header_line
 
-        mov rdx, 0
-        mov dl, [header_line.len]
+        mov rdx, [header_line.len]
         print header_line, rdx
 
         cmp [header_line.len], 0
         je read_rest_of_header.return
 
 
-        fnc818188 \
+        fnc818888 \
             extract_header_field, \
             str_header_line_file_upload_filename, \
             str_header_line_file_upload_filename.size, \
@@ -1087,12 +1079,12 @@ read_next_header_line:
 
 extract_header_field:
 ; input:
-;   rdi - rdi  8B - prefix
-;   rsi - sil  1B - prefix_len
-;   rdx - rdx  8B - header_line
-;   r10 - r10b 1B - header_line_len
-;   r8  - r8   8B - resulting_data - result will be written here (where this points)
-;   r9  - r9   8B - resulting_data_len - result will be written here (where this point)
+;   rdi - rdi 8B - prefix
+;   rsi - sil 1B - prefix_len
+;   rdx - rdx 8B - header_line
+;   r10 - r10 8B - header_line_len
+;   r8  - r8  8B - resulting_data - result will be written here (where this points)
+;   r9  - r9  8B - resulting_data_len - result will be written here (where this point)
 ;
 ; output:
 ;   returns in rax
@@ -1113,7 +1105,7 @@ extract_header_field:
 
     ; load artificial stack
     mov header_line, rdx
-    mov header_line_len, r10b
+    mov header_line_len, r10
 
     ; check for the multipart boundary
 
@@ -1122,8 +1114,7 @@ extract_header_field:
     mov r14b, prefix_len
 
     ; mov dh, header_line_len
-    mov r15, 0
-    mov r15b,header_line_len
+    mov r15, header_line_len
 
     ; received line is too short
     ; cmp dh, dl
@@ -1163,8 +1154,7 @@ extract_header_field:
         mov r14b, prefix_len
 
         ; mov dh, header_line_len
-        mov r15, 0
-        mov r15b, header_line_len
+        mov r15, header_line_len
 
         ; sub dh, dl
         sub r15, r14
@@ -1342,7 +1332,7 @@ header_line 1B 0
 rept (HEADER_LINE_MAXLEN-1) {
        1B 0
 }
-header_line.len 1B 0
+header_line.len 8B 0
 
 url 1B 0
 rept (URL_MAXLEN) { ; add 1 extra character in case we need to add 0 (so it is a c string)
@@ -1356,7 +1346,7 @@ url.len 1B 0
 multipart_boundary_inc_nl_pref db 13, 10
 multipart_boundary_nl_pref.size = $ - multipart_boundary_inc_nl_pref
 multipart_boundary rb (HEADER_LINE_MAXLEN+multipart_end_of_transmission.size)
-multipart_boundary.len 1B 0
+multipart_boundary.len 8B 0
 
 multipart_end_of_transmission db "--", 13, 10
 multipart_end_of_transmission.size = $ - multipart_end_of_transmission
@@ -1440,8 +1430,8 @@ read_dir_nread 8B 0
 read_dir_bpos 8B 0
 
 
-extract_header_field.stack.header_line        8B 0
-extract_header_field.stack.header_line_len    1B 0
+extract_header_field.stack.header_line     8B 0
+extract_header_field.stack.header_line_len 8B 0
 
 
 num_args 8B 0

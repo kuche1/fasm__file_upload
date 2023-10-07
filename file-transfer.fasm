@@ -524,68 +524,117 @@ handle_script_file_upload:
             ; write the good part
             sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
 
-            ; fuck off
-            jmp handle_script_file_upload.copy_to_file_loop_done
+            ; ; fuck off
+            ; jmp handle_script_file_upload.copy_to_file_loop_done
 
-            ; ; mov [tmp_8B_c], file_recv_buf.size
-            ; ; mov rax, [file_recv_buf.free]
-            ; ; sub [tmp_8B_c], rax
-            ; ; print file_recv_buf, [tmp_8B_c]
-
-            ; ; get rid of the sent data
-
-            ; ; calc dest
-            ; mov [tmp_8B_a], file_recv_buf
-            ; mov rax, [tmp_8B]
-            ; add [tmp_8B_a], rax
-
-            ; ; calc size
-            ; mov [tmp_8B_b], file_recv_buf.size
+            ; mov [tmp_8B_c], file_recv_buf.size
             ; mov rax, [file_recv_buf.free]
-            ; sub [tmp_8B_b], rax
-            ; mov rax, [tmp_8B]
-            ; sub [tmp_8B_b], rax
-            ; mov rax, 0
-            ; mov al, [multipart_boundary.len]
-            ; sub [tmp_8B_b], rax
-            ; sub [tmp_8B_b], multipart_boundary_nl_pref.size
+            ; sub [tmp_8B_c], rax
+            ; print file_recv_buf, [tmp_8B_c]
 
-            ; fnc888 \
-            ;     str_copy, \
-            ;     file_recv_buf, [tmp_8B_a], \
-            ;     [tmp_8B_b]
+            ; get rid of the sent data
 
-            ; ; mov [tmp_8B_c], file_recv_buf.size
-            ; ; mov rax, [file_recv_buf.free]
-            ; ; sub [tmp_8B_c], rax
-            ; ; print file_recv_buf, [tmp_8B_c]
+            ; calc source
+            mov [tmp_8B_a], file_recv_buf
+            mov rax, [tmp_8B]
+            add [tmp_8B_a], rax
+            mov rax, 0
+            mov al, [multipart_boundary.len]
+            add [tmp_8B_a], rax
+            add [tmp_8B_a], multipart_boundary_nl_pref.size
 
-            ; mov [file_recv_buf.free], file_recv_buf.size
-            ; mov rax, [tmp_8B_b]
-            ; sub [file_recv_buf.free], rax
+            ; calc size
+            mov [tmp_8B_b], file_recv_buf.size
+            mov rax, [file_recv_buf.free]
+            sub [tmp_8B_b], rax
+            mov rax, [tmp_8B]
+            sub [tmp_8B_b], rax
+            mov rax, 0
+            mov al, [multipart_boundary.len]
+            sub [tmp_8B_b], rax
+            sub [tmp_8B_b], multipart_boundary_nl_pref.size
 
-            ; mov [file_recv_buf.start], file_recv_buf
+            fnc888 \
+                str_copy, \
+                file_recv_buf, [tmp_8B_a], \
+                [tmp_8B_b]
 
-            ; ; mov [tmp_8B_c], file_recv_buf.size
-            ; ; mov rax, [file_recv_buf.free]
-            ; ; sub [tmp_8B_c], rax
-            ; ; print file_recv_buf, [tmp_8B_c]
+            ; mov [tmp_8B_c], file_recv_buf.size
+            ; mov rax, [file_recv_buf.free]
+            ; sub [tmp_8B_c], rax
+            ; print file_recv_buf, [tmp_8B_c]
 
-            ; ; sys_exit [tmp_8B_c]
+            mov [file_recv_buf.free], file_recv_buf.size
+            mov rax, [tmp_8B_b]
+            sub [file_recv_buf.free], rax
 
-            ; ; check if this is the last item
+            ; mov [file_recv_buf.start], file_recv_buf ; TODO start is super fucked; we will have to fix it later
 
-            ; fnc8888 \
-            ;     str_startswith, \
-            ;     file_recv_buf, [tmp_8B_b], \
-            ;     multipart_end_of_transmission, multipart_end_of_transmission.size
+            ; mov [tmp_8B_c], file_recv_buf.size
+            ; mov rax, [file_recv_buf.free]
+            ; sub [tmp_8B_c], rax
+            ; print file_recv_buf, [tmp_8B_c]
+            ; sys_exit [tmp_8B_c]
 
-            ; cmp rax, 0
-            ; je .more_to_come
-            ;     jmp handle_script_file_upload.copy_to_file_loop_done
-            ; .more_to_come:
+            ; check if this is the last item
+
+            fnc8888 \
+                str_startswith, \
+                file_recv_buf, [tmp_8B_b], \
+                multipart_end_of_transmission, multipart_end_of_transmission.size
+
+            cmp rax, 0
+            je .more_to_come
+                ; sys_exit 70
+                jmp handle_script_file_upload.copy_to_file_loop_done
+            .more_to_come:
 
             ; sys_exit 69
+
+            ; skip the leading /n/r
+            
+            mov [tmp_8B_a], file_recv_buf
+            add [tmp_8B_a], 2
+
+            mov [tmp_8B_b], file_recv_buf.size
+            mov rax, [file_recv_buf.free]
+            sub [tmp_8B_b], rax
+            sub [tmp_8B_b], 2
+
+            fnc888 \
+                str_copy, \
+                file_recv_buf, [tmp_8B_a], \
+                [tmp_8B_b]
+            
+            add [file_recv_buf.free], 2
+
+            mov [file_recv_buf.start], file_recv_buf
+            add [file_recv_buf.start], file_recv_buf.size
+            mov rax, [file_recv_buf.free]
+            sub [file_recv_buf.start], rax
+
+            ; mov [tmp_8B_c], file_recv_buf.size
+            ; mov rax, [file_recv_buf.free]
+            ; sub [tmp_8B_c], rax
+            ; print file_recv_buf, [tmp_8B_c]
+            ; sys_exit 71
+
+            ; net_recv [connfd], [file_recv_buf.start], [file_recv_buf.free]
+            ; cmp rax, 0
+            ; jg .recv_ok_asdasdasd
+            ;     ; finish writing ; TODO what about the separator - it might have been interrupted halfway, it's probably best if we cut (separator.len) characters
+            ;     mov [tmp_8B], file_recv_buf.size
+            ;     mov rax, [file_recv_buf.free]
+            ;     sub [tmp_8B], rax
+            ;     sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
+            ;     jmp handle_script_file_upload.copy_to_file_loop_done
+            ; .recv_ok_asdasdasd:
+
+            ; sub [file_recv_buf.free], rax
+            ; add [file_recv_buf.start], rax
+
+            ; let's give up for now
+            jmp handle_script_file_upload.copy_to_file_loop_done
 
         .substr_not_found:
 
@@ -1200,7 +1249,7 @@ multipart_boundary_nl_pref.size = $ - multipart_boundary_inc_nl_pref
 multipart_boundary rb (HEADER_LINE_MAXLEN+multipart_end_of_transmission.size)
 multipart_boundary.len 1B 0
 
-multipart_end_of_transmission db 13, 10, "--"
+multipart_end_of_transmission db "--", 13, 10
 multipart_end_of_transmission.size = $ - multipart_end_of_transmission
 
 ; sex2 db "aaaaa"

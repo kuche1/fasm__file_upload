@@ -1101,6 +1101,9 @@ extract_header_field:
 
 ; TODO push/pop modified regs
 
+    push r14
+    push r15
+
     prefix equ rdi
     prefix_len equ sil
     header_line equ [extract_header_field.stack.header_line]
@@ -1114,11 +1117,17 @@ extract_header_field:
 
     ; check for the multipart boundary
 
-    mov dl, prefix_len
-    mov dh, header_line_len
+    ; mov dl, prefix_len
+    mov r14, 0
+    mov r14b, prefix_len
+
+    ; mov dh, header_line_len
+    mov r15, 0
+    mov r15b,header_line_len
 
     ; received line is too short
-    cmp dh, dl
+    ; cmp dh, dl
+    cmp r15, r14
     jle .return_fail
 
     ; compare strings
@@ -1127,7 +1136,7 @@ extract_header_field:
 
     .compare_next_char:
 
-        cmp dl, 0
+        cmp r14, 0
         je .found_boundary_line
 
         ; read char from expected multipart
@@ -1142,24 +1151,33 @@ extract_header_field:
         cmp cl, ch
         jne .return_fail
 
-        dec dl
+        ; dec dl
+        dec r14
 
     jmp .compare_next_char
 
     .found_boundary_line:
 
-        mov dl, prefix_len
-        mov dh, header_line_len
+        ; mov dl, prefix_len
+        mov r14, 0
+        mov r14b, prefix_len
 
-        sub dh, dl
+        ; mov dh, header_line_len
+        mov r15, 0
+        mov r15b, header_line_len
+
+        ; sub dh, dl
+        sub r15, r14
         mov rax, resulting_data_len
-        mov [rax], dh
+        ; mov [rax], dh
+        mov [rax], r15
 
         mov rax, resulting_data
 
         .copy_boundary:
 
-            cmp dh, 0
+            ; cmp dh, 0
+            cmp r15, 0
             je .return_succ
 
             ; copy
@@ -1169,7 +1187,8 @@ extract_header_field:
             mov [rax], ch
             inc rax
 
-            dec dh
+            ; dec dh
+            dec r15
         
         jmp .copy_boundary
 
@@ -1181,14 +1200,17 @@ extract_header_field:
         mov rax, 0
         jmp .return
 
+    .return:
+
+    pop r15
+    pop r14
+
     restore prefix
     restore prefix_len
     restore header_line
     restore header_line_len
     restore resulting_data
     restore resulting_data_len
-
-    .return:
 
     ret
 

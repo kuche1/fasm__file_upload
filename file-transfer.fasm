@@ -451,11 +451,7 @@ handle_script_file_upload:
     sys_write [connfd], str_http_header_end, str_http_header_end.size
 
     call read_next_header_line
-    ; the boundary (end of transmission for this file) is now located in header_line and has len of header_line.len
-
-    ; mov rdx, 0
-    ; mov dl, [header_line.len]
-    ; print header_line, rdx
+    ; result stored in `header_line` and is of length `[header_line.len]`
 
     ; copy content
     mov rdx, [header_line.len]
@@ -465,22 +461,16 @@ handle_script_file_upload:
     mov rax, [header_line.len]
     mov [multipart_boundary.len], rax
 
-    ; mov rdx, 0
-    ; mov dl, [multipart_boundary.len]
-    ; print multipart_boundary, rdx
-
-    handle_script_file_upload.receive_rest_of_header:
+    handle_script_file_upload.receive_next_file:
 
     call read_rest_of_header
 
-    ; make sure there's a 0 at the end of the filename (we DO have enough mem in buf)
-    mov rbx, [file_upload_filename.len]
-    mov rax, file_upload_filename
-    add rax, rbx
-    mov byte [rax], 0
+    ; print str_sep, str_sep.size
+    ; print file_upload_filename, [file_upload_filename.len]
+    ; print str_sep, str_sep.size
 
     fnc2 \
-        open_file_read_write_at, \
+        open_file_write_at, \
         [folder_uploaded_files_fd], \
         file_upload_filename
 
@@ -492,7 +482,10 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop:
 
-        net_recv [connfd], [file_recv_buf.start], [file_recv_buf.free]
+        ; TODO the way we are checking for the separator is absolutely idiotic
+        ; using endswith makes much more sense
+
+        net_recv_1B [connfd], [file_recv_buf.start]
         cmp rax, 0
         jg .recv_ok
             ; finish writing ; TODO what about the separator - it might have been interrupted halfway, it's probably best if we cut (separator.len) characters
@@ -506,7 +499,7 @@ handle_script_file_upload:
         sub [file_recv_buf.free], rax
         add [file_recv_buf.start], rax
 
-        mov [tmp_8B_a], file_recv_buf.size ; TODO not ideal
+        mov [tmp_8B_a], file_recv_buf.size ; TODO not ideal, using a separate variable for the length would have probably been easier
         mov rax, [file_recv_buf.free]
         sub [tmp_8B_a], rax
         mov r10, [multipart_boundary.len]
@@ -523,157 +516,46 @@ handle_script_file_upload:
             mov [tmp_8B], rax
             ; write the good part
             sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
+            sys_close [file_send_upload_fd]
 
-            ; ; fuck off
-            ; jmp handle_script_file_upload.copy_to_file_loop_done
+            ; all data in `file_recv_buf` is now worthless
 
-            ; mov [tmp_8B_c], file_recv_buf.size
-            ; mov rax, [file_recv_buf.free]
-            ; sub [tmp_8B_c], rax
-            ; print file_recv_buf, [tmp_8B_c]
+            call read_next_header_line
 
-            ; get rid of the sent data
+            print str_sep, str_sep.size
+            print header_line, [header_line.len]
+            print str_sep, str_sep.size
 
-            ; calc source
-            mov [tmp_8B_a], file_recv_buf
-            mov rax, [tmp_8B]
-            add [tmp_8B_a], rax
-            mov rax, [multipart_boundary.len]
-            add [tmp_8B_a], rax
-            add [tmp_8B_a], multipart_boundary_nl_pref.size
+            print str_sep, str_sep.size
+            print str_multipart_end, str_multipart_end.size
+            print str_sep, str_sep.size
 
-            ; calc size
-            mov [tmp_8B_b], file_recv_buf.size
-            mov rax, [file_recv_buf.free]
-            sub [tmp_8B_b], rax
-            mov rax, [tmp_8B]
-            sub [tmp_8B_b], rax
-            mov rax, [multipart_boundary.len]
-            sub [tmp_8B_b], rax
-            sub [tmp_8B_b], multipart_boundary_nl_pref.size
+            ; assert (str_multipart_end.size = 2)
 
-            fnc3 \
-                str_copy, \
-                file_recv_buf, [tmp_8B_a], \
-                [tmp_8B_b]
+            cmp [header_line.len], 2
+            jne .not_end_of_transmission
 
-            ; mov [tmp_8B_c], file_recv_buf.size
-            ; mov rax, [file_recv_buf.free]
-            ; sub [tmp_8B_c], rax
-            ; print file_recv_buf, [tmp_8B_c]
+            cmp [header_line], '-'
+            jne .not_end_of_transmission
 
-            mov [file_recv_buf.free], file_recv_buf.size
-            mov rax, [tmp_8B_b]
-            sub [file_recv_buf.free], rax
+            cmp [header_line+1], '-'
+            jne .not_end_of_transmission
 
-            ; mov [file_recv_buf.start], file_recv_buf ; TODO start is super fucked; we will have to fix it later
+            ; ; check if no more files
+            ; fnc4 \
+            ;     str_startswith, \ ;; TODO there's something wrong with the fnc `str_startswith`
+            ;     header_line, [header_line.len], \
+            ;     str_multipart_end, str_multipart_end.size
 
-            ; mov [tmp_8B_c], file_recv_buf.size
-            ; mov rax, [file_recv_buf.free]
-            ; sub [tmp_8B_c], rax
-            ; print file_recv_buf, [tmp_8B_c]
-            ; sys_exit [tmp_8B_c]
-
-            ; check if this is the last item
-
-            fnc4 \
-                str_startswith, \
-                file_recv_buf, [tmp_8B_b], \
-                multipart_end_of_transmission, multipart_end_of_transmission.size
-
-            cmp rax, 0
-            je .more_to_come
-                ; sys_exit 70
+            ; cmp rax, 0
+            ; jmp .not_end_of_transmission
+                ; sys_exit 76
                 jmp handle_script_file_upload.copy_to_file_loop_done
-            .more_to_come:
+            .not_end_of_transmission:
 
-            ; sys_exit 69
+            ; sys_exit 75
 
-            ; skip the leading /n/r
-            
-            mov [tmp_8B_a], file_recv_buf
-            add [tmp_8B_a], 2
-
-            mov [tmp_8B_b], file_recv_buf.size
-            mov rax, [file_recv_buf.free]
-            sub [tmp_8B_b], rax
-            sub [tmp_8B_b], 2
-
-            fnc3 \
-                str_copy, \
-                file_recv_buf, [tmp_8B_a], \
-                [tmp_8B_b]
-            
-            add [file_recv_buf.free], 2
-
-            mov [file_recv_buf.start], file_recv_buf
-            add [file_recv_buf.start], file_recv_buf.size
-            mov rax, [file_recv_buf.free]
-            sub [file_recv_buf.start], rax
-
-            ; mov [tmp_8B_c], file_recv_buf.size
-            ; mov rax, [file_recv_buf.free]
-            ; sub [tmp_8B_c], rax
-            ; print file_recv_buf, [tmp_8B_c]
-            ; sys_exit 71
-
-            fnc2 \
-                recv_until_end_of_header_line, \
-                [file_recv_buf.start], file_recv_buf.free
-
-            ; TODO finish extracting file name
-            ; TODO account for received bytes stored in rax
-
-            ; mov [tmp_8B_c], file_recv_buf.size
-            ; mov rax, [file_recv_buf.free]
-            ; sub [tmp_8B_c], rax
-            ; print file_recv_buf, [tmp_8B_c]
-            ; sys_exit 72
-
-            mov rax, file_recv_buf.size
-            sub rax, [file_recv_buf.free]
-            mov [tmp_8B], rax
-
-            fnc6 \
-                extract_header_field, \
-                str_header_line_file_upload_filename, \
-                str_header_line_file_upload_filename.size, \
-                file_recv_buf, \
-                [tmp_8B], \
-                file_upload_filename, \
-                file_upload_filename.len
-
-            ; get eid of the stupid `"`
-            mov rax, [file_upload_filename.len]
-            dec rax
-            mov [file_upload_filename.len], rax
-
-            ; put 0 at the end
-            mov rax, file_upload_filename
-            add rax, [file_upload_filename.len]
-            mov byte [rax], 0
-
-            ; mov rax, 0
-            ; mov al, [file_upload_filename.len]
-            ; mov [tmp_8B], rax
-            ; print file_upload_filename, [tmp_8B]
-            ; sys_exit 73
-
-            ; .discarding_rest_of_header:
-
-            ;     mov [tmp_8B], HEADER_LINE_MAXLEN
-
-            ;     ; discard rest of header
-            ;     fnc2 \
-            ;         recv_until_end_of_header_line, \
-            ;         header_line, tmp_8B
-
-            ;     cmp [tmp_8B], HEADER_LINE_MAXLEN
-            ;     je handle_script_file_upload.header_has_been_received_artificially
-
-            ; jmp .discarding_rest_of_header
-
-            jmp handle_script_file_upload.receive_rest_of_header
+            jmp handle_script_file_upload.receive_next_file
 
         .substr_not_found:
 
@@ -979,7 +861,7 @@ read_rest_of_header:
 
             mov rax, file_upload_filename
             .replace_bad_characters: ; HTML is retarded since it switches some of the characters for some retarded codes
-                                        ; we are going to avoid this altogether by replacing the bad characters beforehand
+                                     ; we are going to avoid this altogether by replacing the bad characters beforehand
                 
                 cmp byte [rax], 0 ; end of string
                 je .bad_chars_replaced
@@ -1004,8 +886,12 @@ read_rest_of_header:
             jmp .replace_bad_characters
             .bad_chars_replaced:
 
-
             dec [file_upload_filename.len]
+
+            ; put 0 as last char
+            mov rax, file_upload_filename
+            add rax, [file_upload_filename.len]
+            mov byte [rax], 0
 
         .not_found_file_upload_filename:
 
@@ -1310,6 +1196,14 @@ str_reading_header_done 1B "=============== read header end"
 str_reading_header_done.size = $ - str_reading_header_done
 
 
+str_sep db "++++++++++++"
+str_sep.size = $ - str_sep
+
+
+str_multipart_end db "--"
+str_multipart_end.size = $ - str_multipart_end
+
+
 ;;;;;;;; other
 
 ;; struct sockaddr_in {
@@ -1357,11 +1251,8 @@ url.len 1B 0
 
 multipart_boundary_inc_nl_pref db 13, 10
 multipart_boundary_nl_pref.size = $ - multipart_boundary_inc_nl_pref
-multipart_boundary rb (HEADER_LINE_MAXLEN+multipart_end_of_transmission.size)
+multipart_boundary rb (HEADER_LINE_MAXLEN)
 multipart_boundary.len 8B 0
-
-multipart_end_of_transmission db "--", 13, 10
-multipart_end_of_transmission.size = $ - multipart_end_of_transmission
 
 ; sex2 db "aaaaa"
 
@@ -1373,7 +1264,7 @@ rept (HEADER_LINE_MAXLEN-1) {
 file_upload_filename.len 8B 0
 
 
-file_send_upload_fd dq 0
+file_send_upload_fd dq -1
 
 folder_uploaded_files db "/tmp/file-transfer-uploaded-files", 0
 folder_uploaded_files.size = $ - folder_uploaded_files - 1

@@ -238,9 +238,8 @@ read_1B_buf:
 ;
 ; output:
 ;   rax
-;       >1  - will never happen
-;       1   - success
-;       <=0 - failure
+;       >=0 - number of bytes read (should never be >=2)
+;       <0  - failure
 ;
 ; trash:
 ;   none
@@ -435,7 +434,7 @@ str_startswith:
 ; trash:
 ;   none
 
-    push rdi ; TODO see if syntax `push a,b,c` works
+    push rdi
     push rdx
     push r10
 

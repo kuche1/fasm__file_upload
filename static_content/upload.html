@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <title>Upload</title>
+    <title>Upload</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
@@ -9,15 +10,62 @@
 </head>
 
 <body>
-  
-  <div class="wraper">
-    <h1>File</h1>
-    <form action="/4" method="post" enctype="multipart/form-data" class="cf">
-    <label for="file" class="h1"></label>
-    <input id="file" name="file" type="file" multiple/> <!-- multiple -->
-    <button class="Upload">Upload</button>
-    </form>
-  </div>
+    <div class="wraper">
+        <h1>File</h1>
+        <!-- <form action="/4" method="post" enctype="multipart/form-data" class="cf"> -->
+        <form id="form_file_upload" class="cf">
+        <label for="inp_file" class="h1"></label>
+        <input id="inp_file" name="file" type="file" multiple/>
+        <button id="btn_upload" class="Upload">Upload</button>
+        <progress id="progress_file_upload" value="0" max="100" style="width:auto;"></progress>
+        </form>
+    </div>
 </body>
-    
+
+<script>
+	btn_upload.onclick = function(event) {
+      	event.preventDefault();
+
+		var xhr = new XMLHttpRequest();
+
+		if (xhr.upload) {
+			xhr.upload.onprogress = function(event) {
+				if (event.lengthComputable) {
+                    // progress in format: 100.00
+					var progress = 0.01 * Math.round(10000 * event.loaded / event.total);
+					console.log('Upload progress=' + progress + '%');
+                    progress_file_upload.value = progress
+				}
+			};
+		}
+
+		xhr.onreadystatechange = function () {
+			if (xhr.readyState == XMLHttpRequest.DONE) {
+				if (xhr.status == 200) { // HTTP status 200 received
+					console.log('Upload completed!');
+					console.log('Response: ' + xhr.responseText);
+                    btn_upload.textContent = "Upload Finished"
+				} else {
+					console.log('Upload error (status=' + xhr.status + ')');
+                    btn_upload.textContent = "Upload Error"
+				}
+			}
+		};
+
+		var data = new FormData(form_file_upload);
+		
+		// or:
+		// var data = {
+		//    // some fields here ...
+		// };
+
+		xhr.open('POST', '/4', true);
+		xhr.send(data);
+
+		console.log('Upload started!');
+        btn_upload.disabled = true
+        btn_upload.textContent = "Upload in Progress"
+	};
+</script>
+
 </html>

@@ -465,9 +465,9 @@ handle_script_file_upload:
 
     call read_rest_of_header
 
-    ; print str_sep, str_sep.size
-    ; print file_upload_filename, [file_upload_filename.len]
-    ; print str_sep, str_sep.size
+    print str_sep, str_sep.size
+    print file_upload_filename, [file_upload_filename.len]
+    print str_sep, str_sep.size
 
     fnc2 \
         open_file_write_at, \
@@ -522,13 +522,13 @@ handle_script_file_upload:
 
             call read_next_header_line
 
-            print str_sep, str_sep.size
-            print header_line, [header_line.len]
-            print str_sep, str_sep.size
+            ; print str_sep, str_sep.size
+            ; print header_line, [header_line.len]
+            ; print str_sep, str_sep.size
 
-            print str_sep, str_sep.size
-            print str_multipart_end, str_multipart_end.size
-            print str_sep, str_sep.size
+            ; print str_sep, str_sep.size
+            ; print str_multipart_end, str_multipart_end.size
+            ; print str_sep, str_sep.size
 
             ; assert (str_multipart_end.size = 2)
 

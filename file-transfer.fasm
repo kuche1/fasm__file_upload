@@ -469,9 +469,9 @@ handle_script_file_upload:
     ; mov dl, [multipart_boundary.len]
     ; print multipart_boundary, rdx
 
-    handle_script_file_upload.read_rest_of_header:
-
     call read_rest_of_header
+
+    handle_script_file_upload.header_has_been_received_artificially:
 
     ; make sure there's a 0 at the end of the filename (we DO have enough mem in buf)
     mov rbx, [file_upload_filename.len]
@@ -486,6 +486,7 @@ handle_script_file_upload:
 
     mov [file_send_upload_fd], rax
 
+    ; reset file_recv_buf
     mov [file_recv_buf.free], file_recv_buf.size
     mov [file_recv_buf.start], file_recv_buf
 
@@ -658,8 +659,19 @@ handle_script_file_upload:
             ; print file_upload_filename, [tmp_8B]
             ; sys_exit 73
 
-            ; handle next file
-            jmp handle_script_file_upload.read_rest_of_header
+            .discarding_rest_of_header:
+
+                mov [tmp_8B], HEADER_LINE_MAXLEN
+
+                ; discard rest of header
+                fnc2 \
+                    recv_until_end_of_header_line, \
+                    header_line, tmp_8B
+
+                cmp [tmp_8B], HEADER_LINE_MAXLEN
+                je handle_script_file_upload.header_has_been_received_artificially
+
+            jmp .discarding_rest_of_header
 
         .substr_not_found:
 

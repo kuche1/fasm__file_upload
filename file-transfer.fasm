@@ -272,6 +272,10 @@ serving_thread:
 
     call receive_header
 
+    print str_sep, str_sep.size
+    print str_request_fulfilled, str_request_fulfilled.size
+    print str_sep, str_sep.size
+
     sys_shutdown [connfd], SHUT_RDWR
     sys_close [connfd]
 
@@ -1199,6 +1203,9 @@ str_reading_header_done.size = $ - str_reading_header_done
 str_sep db "++++++++++++"
 str_sep.size = $ - str_sep
 
+str_request_fulfilled db "request fullfilled"
+str_request_fulfilled.size = $ - str_request_fulfilled
+
 
 str_multipart_end db "--"
 str_multipart_end.size = $ - str_multipart_end
@@ -1270,7 +1277,7 @@ folder_uploaded_files db "/tmp/file-transfer-uploaded-files", 0
 folder_uploaded_files.size = $ - folder_uploaded_files - 1
 folder_uploaded_files_fd dq 0
 
-folder_static_content db "./static_content", 0
+folder_static_content db "./static-content", 0
 folder_static_content.size = $ - folder_static_content - 1
 folder_static_content_fd dq 0
 

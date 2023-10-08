@@ -15,7 +15,7 @@ h1{
 }
 /* main body style */
 .wraper{
-  color: pink;
+  color: #ffc0cb;
   border: 2px groove;
   border-radius: 10px;
   width: auto;
@@ -95,11 +95,40 @@ h1{
   }
 
 /* Download list - not working*/
-  .db{
+.db{
     border: none;
     color: white;
     display: flex;
     justify-content: center;
     align-items: center;
     align-content: center;
-  }
+}
+
+
+.dw_wrap{ 
+  display: inline-grid;
+  display: grid;
+  grid-template-rows: auto;
+  grid-template-columns: fit-content(300px) fit-content(300px) fit-content(300px);
+
+}
+.button_dw{
+  word-wrap: break-word;
+  color: rgba(255, 255, 255, 0.781);
+  align-self: center;
+  font-size: 1em;
+  margin: 10px;
+  height: 90px;
+  width: 250px;
+  padding: 15px;
+  border: none;
+  background-color: rgb(54, 61, 82);
+  border-radius: 10px;
+  transition: 0.3s;
+  /* text-wrap: balance; */
+}
+
+
+.button_dw:hover{
+  background-color: #f3ffb96e ;
+}

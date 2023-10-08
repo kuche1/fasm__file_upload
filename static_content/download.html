@@ -8,9 +8,11 @@
 
 <body id="body" class="wraper">
     <h1>Download files</h1>
-    <!-- <form action="/5~file~" method="post">
-        <button class="db"></button>
-    </form> -->
+    <!-- <div class="dw_wrapper">
+    <form action="/5~file~" method="post">
+        <button class="button_dw">asdsadsadsadsadsadsadsadsadsadasds</button>
+    </form>
+    </div> -->
 </body>
 
 <script>
@@ -31,9 +33,13 @@
         files = response.split('\n') // split
         files = files.filter(n => n) // get rid of empty line
 
+        let div = document.createElement("div");
+        div.className = "dw_wrap"
 
         files.forEach((file) => {
             // console.log(file)
+
+            // let div = document.createElement("div")
 
             let form = document.createElement("form");
             form.action = "/5" + file
@@ -41,14 +47,18 @@
 
             let button = document.createElement("button")
             button.textContent = file
-            button.className = "Download_item"
+            button.className = "button_dw"
             form.appendChild(button)
 
             // let p = document.createElement("p")
             // form.appendChild(p)
 
-            body.appendChild(form)
+            div.appendChild(form)
+
+            // body.appendChild(form)
         })
+
+        body.appendChild(div)
     }
 </script>
 

@@ -486,9 +486,6 @@ handle_script_file_upload:
 
     handle_script_file_upload.copy_to_file_loop:
 
-        ; TODO the way we are checking for the separator is absolutely idiotic
-        ; using endswith makes much more sense
-
         net_recv_1B [connfd], [file_recv_buf.start]
         cmp rax, 0
         jg .recv_ok

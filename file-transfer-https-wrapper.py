@@ -30,21 +30,18 @@ def redirect_traffic2(client, client_addr, server_port):
     server.connect(('localhost', server_port))
     server.setblocking(False)
 
-    client_done_sending = False
-
     while True:
         
-        if not client_done_sending:
-            try:
-                data = client.recv(CHUNK)
-            except BlockingIOError:
-                pass
-            except ssl.SSLWantReadError:
-                client_done_sending = True
-            else:
-                server.setblocking(True)
-                server.sendall(data)
-                server.setblocking(False)
+        try:
+            data = client.recv(CHUNK)
+        except BlockingIOError:
+            pass
+        except ssl.SSLWantReadError:
+            pass
+        else:
+            server.setblocking(True)
+            server.sendall(data)
+            server.setblocking(False)
 
         try:
             data = server.recv(CHUNK)

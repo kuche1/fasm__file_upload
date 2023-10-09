@@ -637,7 +637,7 @@ handle_script_file_download:
     sys_lseek [file_send_upload_fd], 0, SEEK_SET
 
     .send_file_loop:
-        sys_sendfile [connfd], [file_send_upload_fd], 0, [tmp_8B]
+        sys_sendfile [connfd], [file_send_upload_fd], 0, [tmp_8B] ; this seems to always return at 2GB
 
         cmp rax, 0
         jle .send_file_done ; network error

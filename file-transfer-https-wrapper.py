@@ -1,9 +1,5 @@
 #! /usr/bin/env python3
 
-# TODO
-#
-# add speed limit
-
 import argparse
 import socket
 import os
@@ -14,7 +10,15 @@ import sys
 
 LISTEN = 5
 
-CHUNK = 1024
+# speed limiter
+
+DOWNLOAD_SPEED = 1024 * 1024 * 5 # 5 MiB/s
+DOWNLOAD_SLEEP = 0.05 # seconds
+DOWNLOAD_CHUNK = int(DOWNLOAD_SPEED * DOWNLOAD_SLEEP)
+
+UPLOAD_SPEED = 1024 * 1024 * 5 # 5 MiB/s
+UPLOAD_SLEEP = 0.05 # seconds
+UPLOAD_CHUNK = int(UPLOAD_SPEED * UPLOAD_SLEEP)
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 SSL_KEYFILE  = os.path.join(HERE, 'certs', 'private.key')
@@ -34,29 +38,40 @@ def redirect_traffic2(client, client_addr, server_port):
     server.connect(('localhost', server_port))
     server.setblocking(False)
 
+    next_upload = 0
+    next_download = 0
+
     while True:
         
-        try:
-            data = client.recv(CHUNK)
-        except BlockingIOError:
-            pass
-        except ssl.SSLWantReadError:
-            pass
-        else:
-            server.setblocking(True)
-            server.sendall(data)
-            server.setblocking(False)
+        if time.time() >= next_download:
+            try:
+                data = client.recv(DOWNLOAD_CHUNK)
+            except BlockingIOError:
+                pass
+            except ssl.SSLWantReadError:
+                pass
+            else:
+                next_download = time.time() + DOWNLOAD_SLEEP * (len(data) / DOWNLOAD_CHUNK)
 
-        try:
-            data = server.recv(CHUNK)
-        except BlockingIOError:
-            pass
-        else:
-            if len(data) == 0:
-                break
-            client.setblocking(True)
-            client.sendall(data)
-            client.setblocking(False)
+                server.setblocking(True)
+                server.sendall(data)
+                server.setblocking(False)
+
+        if time.time() >= next_upload:
+            try:
+                data = server.recv(UPLOAD_CHUNK)
+            except BlockingIOError:
+                pass
+            else:
+                if len(data) == 0:
+                    break
+
+                next_upload = time.time() + UPLOAD_SLEEP * (len(data) / UPLOAD_CHUNK)
+
+                client.setblocking(True)
+                client.sendall(data)
+                client.setblocking(False)
+                time.sleep(UPLOAD_SLEEP)
         
         # TODO ideally there would be a sleep here
 

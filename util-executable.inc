@@ -337,6 +337,78 @@ read_buf:
     ret
 
 
+str_endswith:
+; input:
+;   rdi - str to search in
+;   rsi - str size
+;   rdx - substr
+;   r10 - substr size
+;
+; output:
+;   rax
+;       1 - str ends with substr
+;       0 - str doesn't end with substr
+;
+; trash:
+;   none
+
+    str equ rdi
+    str_len equ rsi
+    substr equ rdx
+    substr_len equ r10
+    substr_start equ r15
+
+    push str
+    ; push str_len
+    push substr
+    ; push substr_len
+    push substr_start
+
+    mov substr_start, substr
+
+    cmp str_len, substr_len
+    jl .return_false
+
+    add str, str_len
+    add substr, substr_len
+
+    .loop:
+        dec str
+        dec substr
+
+        cmp substr, substr_start
+        jl .return_true
+
+        mov al, [str]
+        cmp al, [substr]
+        jne .return_false
+    jmp .loop
+
+    .return_false:
+        mov rax, 0
+        jmp .return
+    
+    .return_true:
+        mov rax, 1
+        jmp .return
+
+    .return:
+
+    pop substr_start
+    ; pop substr_len
+    pop substr
+    ; pop str_len
+    pop str
+
+    restore str
+    restore str_len
+    restore substr
+    restore substr_len
+    restore substr_start
+
+    ret
+
+
 str_indexof:
 ; input:
 ;   rdi - str to search in

@@ -508,16 +508,21 @@ handle_script_file_upload:
         sub [tmp_8B_a], rax
         mov r10, [multipart_boundary.len]
         add r10, multipart_boundary_nl_pref.size
+        mov [tmp_8B_b], r10
 
         fnc4 \
-            str_indexof, \
+            str_endswith, \
             file_recv_buf, [tmp_8B_a], \
-            multipart_boundary_inc_nl_pref, r10
+            multipart_boundary_inc_nl_pref, [tmp_8B_b]
 
         cmp rax, 0
-        jl .substr_not_found
-            ; get offset
+        jle .endswith_failed
+
+            ; calculate offset
+            mov rax, [tmp_8B_a]
+            sub rax, [tmp_8B_b]
             mov [tmp_8B], rax
+
             ; write the good part
             sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
             sys_close [file_send_upload_fd]
@@ -561,7 +566,7 @@ handle_script_file_upload:
 
             jmp handle_script_file_upload.receive_next_file
 
-        .substr_not_found:
+        .endswith_failed:
 
         cmp [file_recv_buf.free], 0
         jne .buf_not_full

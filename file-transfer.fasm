@@ -636,8 +636,18 @@ handle_script_file_download:
     ; go back to the start
     sys_lseek [file_send_upload_fd], 0, SEEK_SET
 
-    ; TODO call this in a loop
-    sys_sendfile [connfd], [file_send_upload_fd], 0, [tmp_8B]
+    .send_file_loop:
+        sys_sendfile [connfd], [file_send_upload_fd], 0, [tmp_8B]
+
+        cmp rax, 0
+        jle .send_file_done ; network error
+
+        sub [tmp_8B], rax
+        cmp [tmp_8B], 0
+        je .send_file_done ; file fully sent
+
+    jmp .send_file_loop
+    .send_file_done:
 
     sys_close [file_send_upload_fd]
 

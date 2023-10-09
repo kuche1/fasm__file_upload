@@ -35,6 +35,7 @@
 					var progress = 0.01 * Math.round(10000 * event.loaded / event.total);
 					console.log('Upload progress=' + progress + '%');
                     progress_file_upload.value = progress
+					btn_upload.textContent = progress.toFixed(2) + '%'
 				}
 			};
 		}

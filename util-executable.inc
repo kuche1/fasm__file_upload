@@ -337,6 +337,79 @@ read_buf:
     ret
 
 
+send_file:
+; input:
+;   rdi - socket fd
+;   rsi - file fd - cursor will be changed
+;
+; output:
+;   rax
+;       1 - success
+;       0 - failure
+;
+; trash:
+;   none
+
+    socket_fd equ r15
+    file_fd equ r14
+    bytes_left equ r13
+
+    push socket_fd
+    push file_fd
+    push bytes_left
+    push rdi
+    push rsi
+    push rdx
+    push r10
+
+    mov socket_fd, rdi
+    mov file_fd, rsi
+
+    ; get file size
+    sys_lseek file_fd, 0, SEEK_END
+    mov bytes_left, rax
+
+    ; go back to the start
+    sys_lseek file_fd, 0, SEEK_SET
+
+    .send_file_loop:
+        sys_sendfile socket_fd, file_fd, 0, bytes_left ; this seems to always return at 2GB
+
+        cmp rax, 0
+        jle .return_failure ; network error
+
+        sub bytes_left, rax
+        cmp bytes_left, 0
+        je .return_success ; file fully sent
+
+    jmp .send_file_loop
+    .send_file_done:
+
+    .return_failure:
+        mov rax, 0
+        jmp .return
+    
+    .return_success:
+        mov rax, 1
+        jmp .return
+
+    .return:
+
+    pop r10
+    pop rdx
+    pop rsi
+    pop rdi
+    pop bytes_left
+    pop file_fd
+    pop socket_fd
+
+    restore socket_fd
+    restore file_fd
+    restore bytes_left
+
+    ret
+
+
 str_endswith:
 ; input:
 ;   rdi - str to search in

@@ -629,25 +629,10 @@ handle_script_file_download:
     sys_openat [folder_uploaded_files_fd], rdi, rsi, 0
     mov [file_send_upload_fd], rax
     
-    ; get file size
-    sys_lseek [file_send_upload_fd], 0, SEEK_END
-    mov [tmp_8B], rax
-
-    ; go back to the start
-    sys_lseek [file_send_upload_fd], 0, SEEK_SET
-
-    .send_file_loop:
-        sys_sendfile [connfd], [file_send_upload_fd], 0, [tmp_8B] ; this seems to always return at 2GB
-
-        cmp rax, 0
-        jle .send_file_done ; network error
-
-        sub [tmp_8B], rax
-        cmp [tmp_8B], 0
-        je .send_file_done ; file fully sent
-
-    jmp .send_file_loop
-    .send_file_done:
+    fnc2 \
+        send_file, \
+        [connfd], \
+        [file_send_upload_fd]
 
     sys_close [file_send_upload_fd]
 
@@ -684,15 +669,10 @@ handle_custom_page:
     sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_end, str_http_header_end.size
 
-    ; get file size
-    sys_lseek [tmp_fd], 0, SEEK_END
-    mov [tmp_8B], rax
-
-    ; go back to the start
-    sys_lseek [tmp_fd], 0, SEEK_SET
-
-    ; TODO call this in a loop
-    sys_sendfile [connfd], [tmp_fd], 0, [tmp_8B]
+    fnc2 \
+        send_file, \
+        [connfd], \
+        [tmp_fd]
 
     sys_close [tmp_fd]
 

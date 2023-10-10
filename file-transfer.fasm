@@ -311,7 +311,7 @@ receive_header:
 
     .method_finished:
 
-    ; TODO very bad but will live it like this for now; ideally there should be a discard_3B_buf fnc or something like that
+    ; TODO very bad but will leave it like this for now; ideally there should be a discard_3B_buf fnc or something like that
     net_recv_1B [connfd], tmp_1B
     net_recv_1B [connfd], tmp_1B
     net_recv_1B [connfd], tmp_1B
@@ -766,61 +766,6 @@ handle_javascript_ls:
     .no_more_dir_entries:
 
     sys_lseek [folder_uploaded_files_fd], 0, SEEK_SET ; reset folder state
-
-    ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;; fnc
-
-recv_until_end_of_header_line:
-;   inpit
-;       rdi - buffer
-;       rsi - ptr to buffer free (size of free is 8B)
-
-    last_char equ recv_until_end_of_header_line.last_char
-    2nd_to_last_char equ recv_until_end_of_header_line.2nd_to_last_char
-
-    push r15
-    push r14
-    push rax
-
-    mov r15, rdi
-    mov r14, rsi
-
-    net_recv_1B [connfd], 2nd_to_last_char
-    
-    .loop:
-
-        mov al, [2nd_to_last_char]
-        mov [last_char], al
-
-        net_recv_1B [connfd], 2nd_to_last_char
-
-        cmp [last_char], 13 ; '\r'
-        jne .not_EOL
-        cmp [2nd_to_last_char], 10 ; '\n'
-        jne .not_EOL
-
-        jmp .return
-        .not_EOL:
-
-        cmp 8bytes [r14], 0 ; TODO would be best if we discarded the rest of the line, also reuse this code elsewhere
-        je .return
-
-        mov al, [last_char]
-        mov [r15], al
-        inc r15
-        dec 8bytes [r14]
-
-    jmp .loop
-
-    .return:
-
-    pop rax
-    pop r14
-    pop r15
-
-    restore last_char
-    restore 2nd_to_last_char
 
     ret
 
@@ -1341,7 +1286,3 @@ extract_header_field.stack.header_line_len 8B 0
 num_args 8B 0
 arg1     8B 0
 arg_port 2B 0
-
-
-recv_until_end_of_header_line.last_char db 0
-recv_until_end_of_header_line.2nd_to_last_char db 0

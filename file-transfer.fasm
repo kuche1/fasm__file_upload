@@ -687,6 +687,8 @@ handle_javascript_ls:
     sys_write [connfd], str_http_header_begin, str_http_header_begin.size
     sys_write [connfd], str_http_header_end, str_http_header_end.size
 
+    push r15
+
     .get_dir_entries:
 
         sys_getdents [folder_uploaded_files_fd], linux_dirent_buf, linux_dirent_buf.size
@@ -704,24 +706,23 @@ handle_javascript_ls:
             jge .no_more_to_read
 
             ; move to the appropriate offset
-            mov rax, linux_dirent_buf
-            add rax, [read_dir_bpos]
+            mov r15, linux_dirent_buf
+            add r15, [read_dir_bpos]
             ; now this points to the relevant linux_dirent struct
 
-            mov rbx, rax
+            mov rbx, r15
             add rbx, linux_dirent_buf.offset.d_reclen
                 mov rcx, 0
                 mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
-                mov rbx, rcx
-            add rbx, rax
+                mov rbx, rcx ; reclen now also here
+            add rbx, r15
             dec rbx
             mov bl, [rbx] ; this is now the d_type (1B)
 
-            ; TODO see why the fuck does this not work
-            ; cmp bl, DT_REG
-            ; jne .read_some_more_next_item ; if it's not a regular file just skip it
+            cmp bl, DT_REG
+            jne .read_some_more_next_item ; if it's not a regular file just skip it
 
-            mov rbx, rax
+            mov rbx, r15
             add rbx, linux_dirent_buf.offset.d_name ; name of file
 
             ; save filename
@@ -746,11 +747,11 @@ handle_javascript_ls:
             .read_some_more_next_item:
 
             ; move to the appropriate offset
-            mov rax, linux_dirent_buf
-            add rax, [read_dir_bpos]
+            mov r15, linux_dirent_buf
+            add r15, [read_dir_bpos]
             ; now this points to the relevant linux_dirent struct
 
-            mov rbx, rax
+            mov rbx, r15
             add rbx, linux_dirent_buf.offset.d_reclen
                 mov rcx, 0
                 mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
@@ -764,6 +765,8 @@ handle_javascript_ls:
 
     jmp .get_dir_entries
     .no_more_dir_entries:
+
+    pop r15
 
     sys_lseek [folder_uploaded_files_fd], 0, SEEK_SET ; reset folder state
 
@@ -1264,10 +1267,7 @@ tmp_timeval timeval
 ;
 ; linux_dirent_buf linux_dirent
 ;
-linux_dirent_buf db 0
-rept (512-1) {
-    db 0
-}
+linux_dirent_buf rb 512
 linux_dirent_buf.size = $ - linux_dirent_buf
 linux_dirent_buf.offset.d_reclen = 16
 linux_dirent_buf.offset.d_name = 18

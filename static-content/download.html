@@ -7,7 +7,7 @@
 </head>
 
 <body id="body" class="wraper">
-    <h1>Download files</h1>
+    <h1 id="text_download_files">Download files</h1>
     <!-- <div class="dw_wrapper">
     <form action="/5~file~" method="post">
         <button class="button_dw">asdsadsadsadsadsadsadsadsadsadasds</button>
@@ -36,11 +36,11 @@
         let div = document.createElement("div");
         div.className = "dw_wrap"
 
+        if(files.length == 0){
+            text_download_files.textContent += ' [no files found]'
+        }
+
         files.forEach((file) => {
-            // console.log(file)
-
-            // let div = document.createElement("div")
-
             let form = document.createElement("form");
             form.action = "/5" + file
             form.method = "post"
@@ -50,12 +50,7 @@
             button.className = "button_dw"
             form.appendChild(button)
 
-            // let p = document.createElement("p")
-            // form.appendChild(p)
-
             div.appendChild(form)
-
-            // body.appendChild(form)
         })
 
         body.appendChild(div)

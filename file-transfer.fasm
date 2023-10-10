@@ -1212,7 +1212,7 @@ file_upload_filename.len 8B 0
 
 file_send_upload_fd dq -1
 
-folder_uploaded_files db "/tmp/file-transfer-uploaded-files", 0
+folder_uploaded_files db "/var/tmp/file-transfer-uploaded-files", 0
 folder_uploaded_files.size = $ - folder_uploaded_files - 1
 folder_uploaded_files_fd dq 0
 

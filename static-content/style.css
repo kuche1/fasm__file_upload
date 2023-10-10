@@ -109,7 +109,7 @@ h1{
   display: inline-grid;
   display: grid;
   grid-template-rows: auto;
-  grid-template-columns: fit-content(300px) fit-content(300px) fit-content(300px);
+  grid-template-columns: fit-content(300px) fit-content(300px) fit-content(300px); /* one column for each item */
 
 }
 .button_dw{

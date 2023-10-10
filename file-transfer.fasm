@@ -75,8 +75,13 @@ RET_CODE_BAD_NUMBER_OF_ARGUMENTS equ 10
 
 MAX_CONNECTIONS equ 5
 SERVING_THREADS equ 20
-URL_MAXLEN equ 128 ; in bytes
-HEADER_LINE_MAXLEN equ 128 ; in bytes ; TODO currently this is not long enough for the cookies line
+URL_MAXLEN equ 256 ; in bytes
+HEADER_LINE_MAXLEN equ 256 ; in bytes
+    ; TODO currently this is not long enough for the cookies line
+    assert HEADER_LINE_MAXLEN <= URL_MAXLEN
+        ; needs to be <=URL_MAXLEN in case the filename is too long, in that case
+        ; the file name will be shortened during it's creation and we will have enough
+        ; mem to write the full (now shortened) filename when the file needs to be sent to the user
 CLIENT_UPLOAD_TIMEOUT_SEC equ 0
 CLIENT_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
 CLIENT_DOWNLOAD_TIMEOUT_SEC equ CLIENT_UPLOAD_TIMEOUT_SEC
@@ -341,9 +346,7 @@ receive_header:
     ; put 0 at the end; don't worry we have enough mem
     mov byte [rcx], 0
 
-    mov rdx, 0
-    mov dl, [url.len]
-    print url, rdx
+    print url, [url.len]
 
     mov [file_upload_filename.len], 0
     call read_rest_of_header
@@ -607,8 +610,7 @@ handle_script_file_download:
     sys_write [connfd], str_http_header_attachment_begin, str_http_header_attachment_begin.size
 
     ; save file len
-    mov rdx, 0
-    mov dl, [url.len]
+    mov rdx, [url.len]
 
     ; save file name
     mov rsi, url
@@ -1243,7 +1245,7 @@ url 1B 0
 rept (URL_MAXLEN) { ; add 1 extra character in case we need to add 0 (so it is a c string)
        1B 0
 }
-url.len 1B 0
+url.len 8B 0
 
 
 ; sex1 db "aaaaa"

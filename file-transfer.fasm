@@ -865,7 +865,7 @@ read_next_header_line:
         cmp rax, 0
         jl read_next_header_line.line_done
 
-        cmp [tmp_1B_b], 10 ; \n
+        cmp [tmp_1B_b], 10 ; \n ; TODO IDEA (same goes for all such cases): mov ah, 10; mov al, 13; cmp ax, [tmp_2B]
         jne read_next_header_line.read_next_byte
         cmp [tmp_1B_a], 13 ; \r
         jne read_next_header_line.read_next_byte

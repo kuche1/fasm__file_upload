@@ -3,6 +3,30 @@ include "linux-comptime.inc"
 include "util-comptime.inc"
 
 
+create_folder:
+; input:
+;   rdi - path to folder (cstring)
+;
+; output:
+;   rax - 0 on success
+;
+; trash:
+;   none
+
+    push rsi
+
+    mov rsi, S_IRWXU
+    or rsi, S_IRWXG
+    or rsi, S_IROTH
+    or rsi, S_IXOTH
+
+    sys0 SYSCALL_MKDIR
+
+    pop rsi
+
+    ret
+
+
 cstr_to_uint:
 ; input:
 ;   rdi - cstring

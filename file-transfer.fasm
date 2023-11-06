@@ -171,6 +171,10 @@ main:
     .folder_static_content_ok:
 
 
+    fnc1 create_folder, folder_uploaded_files
+    ; alternatively we could check the return code here
+    ; but I don't mind keeping the code below
+
     fnc1 \
         open_folder_read, \
         folder_uploaded_files
@@ -178,7 +182,7 @@ main:
     mov [folder_uploaded_files_fd], rax
     cmp rax, 0
     jge .folder_ok
-        print_nnl str_warn_folder_existance, str_warn_folder_existance.size
+        print_nnl str_warn_could_not_create_folder, str_warn_could_not_create_folder.size
         print folder_uploaded_files, folder_uploaded_files.size
         sys_exit RET_CODE_FOLDER_CONTAINING_UPLOADED_FILES_DOESNT_EXIST
     .folder_ok:
@@ -1095,8 +1099,11 @@ tmp_fd dq 0
 str_starting_program db "starting server"
 str_starting_program_len = $ - str_starting_program
 
-str_warn_folder_existance db "make sure that the following folder exists: "
-str_warn_folder_existance.size = $ - str_warn_folder_existance
+str_warn_folder_existance db "make sure that the following folder exists: ", 0
+str_warn_folder_existance.size = $ - str_warn_folder_existance - 1
+
+str_warn_could_not_create_folder db "could not create folder: "
+str_warn_could_not_create_folder.size = $ - str_warn_could_not_create_folder
 
 str_error_num_args db "you need to precify exactly 1 argument: port"
 str_error_num_args.size = $ - str_error_num_args

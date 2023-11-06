@@ -24,6 +24,7 @@ SYSCALL_EXIT equ 60
 SYSCALL_FTRUNCATE equ 77
 SYSCALL_GETDENTS equ 78
 SYSCALL_CHDIR equ 80
+SYSCALL_MKDIR equ 83
 SYSCALL_OPENAT equ 257
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; comtime constants: files
@@ -52,6 +53,9 @@ S_IRUSR equ 256
 S_IWUSR equ 128
 S_IRGRP equ 32
 S_IROTH equ 4
+S_IRWXU equ 448
+S_IRWXG equ 56
+S_IXOTH equ 1
 
 SEEK_SET equ 0
 SEEK_CUR equ 1
@@ -122,7 +126,7 @@ macro sys_fork {
     sys0 SYSCALL_FORK
 }
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; macros: syscalls: files
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; macros: syscalls: files and folders
 
 macro sys_chdir new_cwd {
     sys1 SYSCALL_CHDIR, new_cwd
@@ -142,6 +146,10 @@ macro sys_getdents fd, linux_dirent, linux_dirent_size {
 
 macro sys_lseek fd, offset, whence {
     sys3 SYSCALL_LSEEK, fd, offset, whence
+}
+
+macro sys_mkdir path, mode {
+    sys2 SYSCALL_MKDIR, path, mode
 }
 
 macro sys_open file_name, flags, mode {

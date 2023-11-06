@@ -323,7 +323,7 @@ receive_header:
 
         ; network error
         cmp rax, 0
-        jl .url_received
+        jle .url_received
 
         cmp [tmp_1B], ' '
         je .url_received
@@ -855,6 +855,8 @@ read_next_header_line:
     mov [header_line.len], 0
 
     net_recv_1B [connfd], tmp_1B_a
+    cmp rax, 0
+    jle read_next_header_line.line_done
     
     read_next_header_line.loop:
 
@@ -862,7 +864,7 @@ read_next_header_line:
 
         ; network error
         cmp rax, 0
-        jl read_next_header_line.line_done
+        jle read_next_header_line.line_done
 
         cmp [tmp_1B_b], 10 ; \n ; TODO IDEA (same goes for all such cases): mov ah, 10; mov al, 13; cmp ax, [tmp_2B]
         jne read_next_header_line.read_next_byte
@@ -895,7 +897,7 @@ read_next_header_line:
 
         ; network error
         cmp rax, 0
-        jl read_next_header_line.line_done
+        jle read_next_header_line.line_done
 
         cmp [tmp_1B_b], 10 ; \n
         jne read_next_header_line.discard_next_byte

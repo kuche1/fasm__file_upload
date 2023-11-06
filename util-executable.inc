@@ -3,22 +3,6 @@ include "linux-comptime.inc"
 include "util-comptime.inc"
 
 
-; circularstr_equ_str:
-
-;     circularstr_start = circular.idx - str.len
-;     if(curcular_start < circular.start){
-;         circular_start += circular.size
-;     }
-
-;     c1 = [circular_start]
-;     circular_start = (circular_start + 1) % size
-
-;     c2 = [str]
-;     str += 1
-
-;     ret
-
-
 cstr_to_uint:
 ; input:
 ;   rdi - cstring

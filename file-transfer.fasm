@@ -3,7 +3,10 @@
 
 ; TODO
 ;
+; depricate all _init functions (ofc at the cost of some performance)
+;
 ; add sleeps on IO operation so that 100% of the CPU is not use per client
+; no that the read might not be at fault here
 ;
 ; make the code as readable as possible
 ; give 0 fucks about C calling conventions

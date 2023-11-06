@@ -1,0 +1,1274 @@
+
+; fasm file-transfer.fasm && chmod +x file-transfer && ./file-transfer 6969
+
+; TODO
+;
+; use `jle` instead of `je` when comparing lengths
+;
+; create the `/tmp/...` folder
+;
+; make macros hygenic (as in the push/pop their own registers)
+; or go tell the caller to fuck off
+;
+; check TCP_NODELAY
+;
+; check the number of written bytes when sending data
+;
+; ? make it so that `sys_*` and `fnc*` preserve the arg registers
+
+; info
+;
+; https://flatassembler.net/docs.php
+; http://bos.asmhackers.net/docs/FASM%20tutorial/preproc.html
+;
+; registers: https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
+; more registers: https://cs.brown.edu/courses/cs033/docs/guides/x64_cheatsheet.pdf
+; rax, rbx, rcx, rdx, rsi, rdi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14 (and more)
+
+; debug tips
+;
+; omg you get NO SYMBOLS WTF
+; no `main`, no `_start`, nothing
+; if you don't believe me check with `nm`
+;
+; run with `strace`
+;
+; `readelf -e <file>` and find the `entry point address`
+; then in `gdb <file>` put a breakpoint on that address `b *0x4000b0`
+; then `run` and `tui enable` and `layout asm`
+; and you will get an asm view
+;
+; less retarded debugger is `gf` executable is called `gf2` https://github.com/nakst/gf
+; again, break on the entry point using `b *0x4000b0`
+; switch to the `registers` tab
+; start with `run`
+; use `ni` for next step
+
+format ELF64 executable
+
+include "linux-comptime.inc"
+include "util-comptime.inc"
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: return codes
+
+RET_CODE_SUCC equ 0
+RET_CODE_FAIL equ 1
+RET_CODE_TCP_SOCKET_FAIL equ 2
+RET_CODE_BIND_FAIL equ 3
+RET_CODE_LISTEN_FAIL equ 4
+;RET_CODE_ACCEPT_FAIL equ 5 ; no longer used
+RET_CODE_SETSOCKOPT_FAIL equ 6
+RET_CODE_CHDIR_FAIL equ 7
+RET_CODE_FOLDER_CONTAINING_UPLOADED_FILES_DOESNT_EXIST equ 8
+RET_CODE_FOLDER_CONTAINING_STATIC_CONTENT_DOESNT_EXIST equ 9
+RET_CODE_BAD_NUMBER_OF_ARGUMENTS equ 10
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: server parameters
+
+MAX_CONNECTIONS equ 5
+SERVING_THREADS equ 20
+URL_MAXLEN equ 256 ; in bytes
+HEADER_LINE_MAXLEN equ 256 ; in bytes
+    ; TODO currently this is not long enough for the cookies line
+    assert HEADER_LINE_MAXLEN <= URL_MAXLEN
+        ; needs to be <=URL_MAXLEN in case the filename is too long, in that case
+        ; the file name will be shortened during it's creation and we will have enough
+        ; mem to write the full (now shortened) filename when the file needs to be sent to the user
+CLIENT_UPLOAD_TIMEOUT_SEC equ 0
+CLIENT_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
+CLIENT_DOWNLOAD_TIMEOUT_SEC equ CLIENT_UPLOAD_TIMEOUT_SEC
+CLIENT_DOWNLOAD_TIMEOUT_USEC equ CLIENT_UPLOAD_TIMEOUT_USEC
+
+;;;;;;;;;;;;;;;;;;;;;;;;; comptime constants: idkman
+
+METHOD_GET equ 0
+METHOD_POST equ 1
+
+;;;;;;;;;;;;;;;;;;;;;;;;; macros
+
+macro print msg, msg_len {
+    print_nnl msg, msg_len
+    sys_write FILE_STDOUT, str_nl, str_nl.size
+}
+
+macro print_nnl msg, msg_len {
+    sys_write FILE_STDOUT, msg, msg_len
+}
+
+macro create_tcp_socket {
+;; returns: dword eax: sockfd
+
+    local tcp_socket_ok ; now this macro can be called multiple times without any label errors
+
+    sys_socket AF_INET, SOCKET_TYPE_TCP, 0 ;; only one TCP protocol exists so the last arguments stays at 0
+    cmp rax, 0
+    jge tcp_socket_ok
+        sys_exit RET_CODE_TCP_SOCKET_FAIL
+    tcp_socket_ok:
+}
+
+macro net_recv_1B fd, buf  {
+    ; sys_read fd, buf, 1      ; no cache version
+    fnc2 read_1B_buf, fd, buf ; cache version
+}
+
+macro net_recv fd, buf, size {
+    ; sys_read fd, buf, size       ; no cache version
+    fnc3 read_buf, fd, buf, size ; cache version
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;; code section
+
+segment readable executable
+
+include "util-executable.inc"
+
+entry main
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+main:
+    print str_starting_program, str_starting_program_len
+
+
+    ; command line args are put on the stack
+    ; the very first item is the number of arguments
+    pop [num_args]
+    cmp [num_args], 2
+    je .num_args_ok
+        print str_error_num_args, str_error_num_args.size
+        sys_exit RET_CODE_BAD_NUMBER_OF_ARGUMENTS
+    .num_args_ok:
+
+    pop rax ; path to file; useless
+
+    pop [arg1] ; port as cstring
+
+    fnc1 cstr_to_uint, [arg1]
+    mov [arg_port], ax
+
+
+    fnc1 \
+        open_folder_read, \
+        folder_static_content
+
+    mov [folder_static_content_fd], rax
+    cmp rax, 0
+    jge .folder_static_content_ok
+        print_nnl str_warn_folder_existance, str_warn_folder_existance.size
+        print folder_static_content, folder_static_content.size
+        sys_exit RET_CODE_FOLDER_CONTAINING_STATIC_CONTENT_DOESNT_EXIST
+    .folder_static_content_ok:
+
+
+    fnc1 \
+        open_folder_read, \
+        folder_uploaded_files
+
+    mov [folder_uploaded_files_fd], rax
+    cmp rax, 0
+    jge .folder_ok
+        print_nnl str_warn_folder_existance, str_warn_folder_existance.size
+        print folder_uploaded_files, folder_uploaded_files.size
+        sys_exit RET_CODE_FOLDER_CONTAINING_UPLOADED_FILES_DOESNT_EXIST
+    .folder_ok:
+
+
+    create_tcp_socket
+    ;; returns: dword eax: sockfd
+    mov qword [sockfd], rax
+
+    ; make port reusable
+    sys_setsockopt [sockfd], SOL_SOCKET, SO_REUSEPORT, one, sizeof_one
+    cmp rax, 0
+    jge setsockopt_ok
+        sys_exit RET_CODE_SETSOCKOPT_FAIL
+    setsockopt_ok:
+
+    ;; servaddr.sin_family = AF_INET;
+    mov word [servaddr.sin_family], AF_INET
+
+    ; servaddr.sin_port = htons(PORT);
+    ;
+    ; ; convert endianness by hand
+    ; ; 6969 -(to-hex)-> 0x1b39 -(convert-endianness)-> 0x391b -(to-dec)-> 14619
+    ; mov word [servaddr.sin_port], 14619
+    ;
+    ; convert endianness
+    mov ax, [arg_port]
+    mov bh, ah
+    mov ah, al
+    mov al, bh
+    mov [servaddr.sin_port], ax
+
+    ;; servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    ;; INADDR_ANY is 0 therefore I give 0 fucks about endianness
+    mov dword [servaddr.sin_addr], 0
+
+    sys_bind [sockfd], servaddr, servaddr.size
+    cmp rax, 0
+    jz bind_is_ok
+        sys_exit RET_CODE_BIND_FAIL
+    bind_is_ok:
+
+    sys_listen [sockfd], MAX_CONNECTIONS
+    cmp rax, 0
+    jz listen_is_ok
+        sys_exit RET_CODE_LISTEN_FAIL
+    listen_is_ok:
+
+    rept (SERVING_THREADS-1) counter {
+        sys_fork
+        cmp rax, 0
+        jnz is_parent_#counter
+            ;; is child
+            jmp serving_thread
+        is_parent_#counter:
+    }
+
+    jmp serving_thread ; also use main thread to serve
+
+    sys_close [folder_static_content_fd]
+    sys_close [folder_uploaded_files_fd]
+
+    sys_shutdown [sockfd], SHUT_RDWR
+    sys_close [sockfd]
+
+    sys_exit RET_CODE_SUCC
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+serving_thread:
+
+    sys_accept [sockfd], cliaddr, cliaddr_size
+    cmp rax, 0
+    jg accept_is_ok
+        ;; client is a piece of shit
+        jmp serving_thread
+    accept_is_ok:
+
+    mov qword [connfd], rax
+
+    ; set client upload timeout
+    mov [tmp_timeval.tv_sec], CLIENT_UPLOAD_TIMEOUT_SEC
+    mov [tmp_timeval.tv_usec], CLIENT_UPLOAD_TIMEOUT_USEC
+    sys_setsockopt [connfd], SOL_SOCKET, SO_RCVTIMEO, tmp_timeval, tmp_timeval.size
+
+    ; set client download timeout
+    mov [tmp_timeval.tv_sec], CLIENT_DOWNLOAD_TIMEOUT_SEC
+    mov [tmp_timeval.tv_usec], CLIENT_DOWNLOAD_TIMEOUT_USEC
+    sys_setsockopt [connfd], SOL_SOCKET, SO_SNDTIMEO, tmp_timeval, tmp_timeval.size
+
+    ; reset cache
+    call read_1B_buf.reset_cache
+
+    call receive_header
+
+    print str_sep, str_sep.size
+    print str_request_fulfilled, str_request_fulfilled.size
+    print str_sep, str_sep.size
+
+    sys_shutdown [connfd], SHUT_RDWR
+    sys_close [connfd]
+
+    jmp serving_thread
+
+    sys_exit RET_CODE_SUCC
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+receive_header:
+
+    net_recv_1B [connfd], tmp_1B
+
+    cmp [tmp_1B], 'G'
+    je .method_get ; assume GET
+
+    ; cmp [tmp_1B], 'P'
+    jmp .method_post ; assume POST
+
+    .method_get:
+        mov [method], METHOD_GET
+        jmp .method_finished
+
+    .method_post:
+        net_recv_1B [connfd], tmp_1B
+        mov [method], METHOD_POST
+        jmp .method_finished
+
+    .method_finished:
+
+    ; TODO very bad but will leave it like this for now; ideally there should be a discard_3B_buf fnc or something like that
+    net_recv_1B [connfd], tmp_1B
+    net_recv_1B [connfd], tmp_1B
+    net_recv_1B [connfd], tmp_1B
+
+    mov rcx, url
+    mov [url.len], 0
+
+    .receive_next_byte_from_url:
+        push rcx
+        net_recv_1B [connfd], tmp_1B
+        pop rcx
+
+        ; network error
+        cmp rax, 0
+        jl .url_received
+
+        cmp [tmp_1B], ' '
+        je .url_received
+
+        mov al, [tmp_1B]
+        mov [rcx], al
+
+        inc rcx
+        inc [url.len]
+
+        cmp [url.len], URL_MAXLEN
+        je .url_received ; TODO idk what the appropriate action is ; TODO terminating the connection is probably better
+
+        jmp .receive_next_byte_from_url
+    .url_received:
+
+    ; put 0 at the end; don't worry we have enough mem
+    mov byte [rcx], 0
+
+    print url, [url.len]
+
+    mov [file_upload_filename.len], 0
+    call read_rest_of_header
+
+    ; ; len would be 0 if it was not found
+    ; mov rdx, 0
+    ; mov dl, [file_upload_filename.len]
+    ; print file_upload_filename, rdx
+
+    call handle_request
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_request:
+
+    ; not going to check for edge cases since in that case the malicious user
+    ; is going to get a response based on the random bullshit in memory
+
+    cmp [method], METHOD_GET
+    je .metod_is_get
+
+    cmp [method], METHOD_POST ; we can save some performance by skipping this cmp
+    je .method_is_post
+
+    jmp .method_is_unknown
+
+    .metod_is_get:
+        call handle_request_get
+        jmp .done
+
+    .method_is_post:
+        call handle_request_post
+        jmp .done
+
+    .method_is_unknown:
+        call handle_page_404
+        jmp .done
+    
+    .done:
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_request_get:
+
+    cmp [url.len], 1
+    jne .no_need_to_fix_request
+        ; not ideal but ok
+        mov byte [url   ], '/'
+        mov byte [url+ 1], 'i'
+        mov byte [url+ 2], 'n'
+        mov byte [url+ 3], 'd'
+        mov byte [url+ 4], 'e'
+        mov byte [url+ 5], 'x'
+        mov byte [url+ 6], '.'
+        mov byte [url+ 7], 'h'
+        mov byte [url+ 8], 't'
+        mov byte [url+ 9], 'm'
+        mov byte [url+10], 'l'
+        mov byte [url+11], 0
+        mov [url.len], 11
+        assert 11 < URL_MAXLEN ; compile time assert ; realistically it should be <= but that would create a dependency, so let's just keep it as is, it's not going to cause a trouble any time soon
+    .no_need_to_fix_request:
+
+    call handle_custom_page
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_request_post:
+
+    cmp byte [url+1], '4' ; skipping past the `/`
+    je .requested_script_file_upload
+
+    cmp byte [url+1], '5'
+    je .requested_script_file_download
+
+    cmp byte [url+1], '6'
+    je .requested_javascript_ls
+
+    jmp .invalid_request
+    
+    .requested_script_file_upload:
+        call handle_script_file_upload
+        jmp .return
+
+    .requested_script_file_download:
+        call handle_script_file_download
+        jmp .return
+
+    .requested_javascript_ls:
+        call handle_javascript_ls
+        jmp .return
+
+    .invalid_request:
+        call handle_page_404
+        jmp .return
+
+    .return:
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_script_file_upload:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    call read_next_header_line
+    ; result stored in `header_line` and is of length `[header_line.len]`
+
+    ; copy content
+    mov rdx, [header_line.len]
+    fnc3 str_copy, multipart_boundary, header_line, rdx
+
+    ; copy len
+    mov rax, [header_line.len]
+    mov [multipart_boundary.len], rax
+
+    handle_script_file_upload.receive_next_file:
+
+    call read_rest_of_header
+
+    print str_sep, str_sep.size
+    print file_upload_filename, [file_upload_filename.len]
+    print str_sep, str_sep.size
+
+    fnc2 \
+        open_file_write_at, \
+        [folder_uploaded_files_fd], \
+        file_upload_filename
+
+    mov [file_send_upload_fd], rax
+
+    ; reset file_recv_buf
+    mov [file_recv_buf.free], file_recv_buf.size
+    mov [file_recv_buf.start], file_recv_buf
+
+    handle_script_file_upload.copy_to_file_loop:
+
+        net_recv_1B [connfd], [file_recv_buf.start]
+        cmp rax, 0
+        jg .recv_ok
+            ; finish writing ; TODO what about the separator - it might have been interrupted halfway, it's probably best if we cut (separator.len) characters
+            mov [tmp_8B], file_recv_buf.size
+            mov rax, [file_recv_buf.free]
+            sub [tmp_8B], rax
+            sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
+            jmp handle_script_file_upload.copy_to_file_loop_done
+        .recv_ok:
+
+        sub [file_recv_buf.free], rax
+        add [file_recv_buf.start], rax
+
+        mov [tmp_8B_a], file_recv_buf.size ; TODO not ideal, using a separate variable for the length would have probably been easier
+        mov rax, [file_recv_buf.free]
+        sub [tmp_8B_a], rax
+        mov r10, [multipart_boundary.len]
+        add r10, multipart_boundary_nl_pref.size
+        mov [tmp_8B_b], r10
+
+        fnc4 \
+            str_endswith, \
+            file_recv_buf, [tmp_8B_a], \
+            multipart_boundary_inc_nl_pref, [tmp_8B_b]
+
+        cmp rax, 0
+        jle .endswith_failed
+
+            ; calculate offset
+            mov rax, [tmp_8B_a]
+            sub rax, [tmp_8B_b]
+            mov [tmp_8B], rax
+
+            ; write the good part
+            sys_write [file_send_upload_fd], file_recv_buf, [tmp_8B]
+            sys_close [file_send_upload_fd]
+
+            ; all data in `file_recv_buf` is now worthless
+
+            call read_next_header_line
+
+            ; print str_sep, str_sep.size
+            ; print header_line, [header_line.len]
+            ; print str_sep, str_sep.size
+
+            ; print str_sep, str_sep.size
+            ; print str_multipart_end, str_multipart_end.size
+            ; print str_sep, str_sep.size
+
+            ; assert (str_multipart_end.size = 2)
+
+            cmp [header_line.len], 2
+            jne .not_end_of_transmission
+
+            cmp [header_line], '-'
+            jne .not_end_of_transmission
+
+            cmp [header_line+1], '-'
+            jne .not_end_of_transmission
+
+            ; ; check if no more files
+            ; fnc4 \
+            ;     str_startswith, \ ;; TODO there's something wrong with the fnc `str_startswith`
+            ;     header_line, [header_line.len], \
+            ;     str_multipart_end, str_multipart_end.size
+
+            ; cmp rax, 0
+            ; jmp .not_end_of_transmission
+                ; sys_exit 76
+                jmp handle_script_file_upload.copy_to_file_loop_done
+            .not_end_of_transmission:
+
+            ; sys_exit 75
+
+            jmp handle_script_file_upload.receive_next_file
+
+        .endswith_failed:
+
+        cmp [file_recv_buf.free], 0
+        jne .buf_not_full
+            sys_write [file_send_upload_fd], file_recv_buf.a, file_recv_buf.a.size
+
+            ; TODO would be better if we simply swapped pointers (or would it?)
+            fnc3 \
+                str_copy, \
+                file_recv_buf.a, file_recv_buf.b, \
+                file_recv_buf.a.size
+
+            mov [file_recv_buf.free], file_recv_buf.b.size
+            mov [file_recv_buf.start], file_recv_buf.b
+        .buf_not_full:
+
+    jmp handle_script_file_upload.copy_to_file_loop
+
+    handle_script_file_upload.copy_to_file_loop_done:
+
+    ; ; now we need to delete the last (`multipart_boundary.len` + 5["--"+"\n19"] + 1?["\r"]) characters
+
+    ; sys_lseek [file_send_upload_fd], 0, SEEK_CUR
+    ; mov [tmp_8B], rax ; current offset
+
+    ; ; calc new size
+    ; mov rcx, 0
+    ; mov cl, [multipart_boundary.len]
+    ; sub [tmp_8B], rcx
+    ; sub [tmp_8B], 6
+
+    ; sys_ftruncate [file_send_upload_fd], [tmp_8B]
+
+    sys_close [file_send_upload_fd]
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_script_file_download:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_attachment_begin, str_http_header_attachment_begin.size
+
+    ; save file len
+    mov rdx, [url.len]
+
+    ; save file name
+    mov rsi, url
+    ; skip slash and magic number
+    add rsi, 2
+    sub dl, 2
+    push rsi ; push file name
+
+    sys_write [connfd], rsi, rdx
+
+    sys_write [connfd], str_http_header_attachment_end, str_http_header_attachment_end.size
+
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    mov rsi, O_RDONLY
+
+    pop rdi ; pop file name
+    sys_openat [folder_uploaded_files_fd], rdi, rsi, 0
+    mov [file_send_upload_fd], rax
+    
+    fnc2 \
+        send_file, \
+        [connfd], \
+        [file_send_upload_fd]
+
+    sys_close [file_send_upload_fd]
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_page_404:
+    sys_write [connfd], str_http_header_begin_404, str_http_header_begin_404.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    sys_write [connfd], str_html_page_404, str_html_page_404.size
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_custom_page:
+
+    fnc2 \
+        open_file_read_at, \
+        [folder_static_content_fd], \
+        (url+1) ; skip the `/`
+
+    mov [tmp_fd], rax
+    cmp rax, 0
+    jge .file_exists
+        ; file doesn't exist
+        call handle_page_404
+        jmp .return
+    .file_exists:
+
+    ; send headers
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    fnc2 \
+        send_file, \
+        [connfd], \
+        [tmp_fd]
+
+    sys_close [tmp_fd]
+
+    .return:
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_javascript_ls:
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    push r15
+
+    .get_dir_entries:
+
+        sys_getdents [folder_uploaded_files_fd], linux_dirent_buf, linux_dirent_buf.size
+        cmp rax, 0
+        je .no_more_dir_entries
+
+        mov [read_dir_nread], rax
+
+        mov [read_dir_bpos], 0
+
+        .read_some_more:
+
+            mov rax, [read_dir_nread]
+            cmp [read_dir_bpos], rax
+            jge .no_more_to_read
+
+            ; move to the appropriate offset
+            mov r15, linux_dirent_buf
+            add r15, [read_dir_bpos]
+            ; now this points to the relevant linux_dirent struct
+
+            mov rbx, r15
+            add rbx, linux_dirent_buf.offset.d_reclen
+                mov rcx, 0
+                mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
+                mov rbx, rcx ; reclen now also here
+            add rbx, r15
+            dec rbx
+            mov bl, [rbx] ; this is now the d_type (1B)
+
+            cmp bl, DT_REG
+            jne .read_some_more_next_item ; if it's not a regular file just skip it
+
+            mov rbx, r15
+            add rbx, linux_dirent_buf.offset.d_name ; name of file
+
+            ; save filename
+            mov [tmp_8B_a], rbx
+
+            ; get filename len
+            mov rcx, 0
+            .try_next_char:
+                cmp byte [rbx], 0
+                je .last_char_reached
+                inc rbx
+                inc rcx
+            jmp .try_next_char
+            .last_char_reached:
+
+            ; save filename len
+            mov [tmp_8B], rcx
+
+            sys_write [connfd], [tmp_8B_a], [tmp_8B]
+            sys_write [connfd], str_nl, str_nl.size
+            
+            .read_some_more_next_item:
+
+            ; move to the appropriate offset
+            mov r15, linux_dirent_buf
+            add r15, [read_dir_bpos]
+            ; now this points to the relevant linux_dirent struct
+
+            mov rbx, r15
+            add rbx, linux_dirent_buf.offset.d_reclen
+                mov rcx, 0
+                mov cx, [rbx] ; this is now the reclen; reclen is 2bytes
+                mov rbx, rcx
+
+            add [read_dir_bpos], rbx
+            
+        jmp .read_some_more
+        .no_more_to_read:
+
+    jmp .get_dir_entries
+    .no_more_dir_entries:
+
+    pop r15
+
+    sys_lseek [folder_uploaded_files_fd], 0, SEEK_SET ; reset folder state
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+read_rest_of_header:
+    print str_reading_header, str_reading_header.size
+
+    read_rest_of_header.read_next_line:
+
+        call read_next_header_line
+
+        mov rdx, [header_line.len]
+        print header_line, rdx
+
+        cmp [header_line.len], 0
+        je read_rest_of_header.return
+
+
+        fnc6 \
+            extract_header_field, \
+            str_header_line_file_upload_filename, \
+            str_header_line_file_upload_filename.size, \
+            header_line, \
+            [header_line.len], \
+            file_upload_filename, \
+            file_upload_filename.len
+
+        cmp rax, 0
+        je .not_found_file_upload_filename
+
+            ; if it has been found remove the last character (it's a `"`)
+
+            cmp [file_upload_filename.len], 0
+            je .not_found_file_upload_filename
+
+            mov rax, file_upload_filename
+            .replace_bad_characters: ; HTML is retarded since it switches some of the characters for some retarded codes
+                                     ; we are going to avoid this altogether by replacing the bad characters beforehand
+                
+                cmp byte [rax], 0 ; end of string
+                je .bad_chars_replaced
+
+                ; replace ` ` with `_`
+                cmp byte [rax], ' '
+                je .replace_this_char
+                
+                cmp byte [rax], '"'
+                je .replace_this_char
+
+                cmp byte [rax], "'"
+                je .replace_this_char
+
+                jmp .char_replace_done
+                .replace_this_char:
+                    mov byte [rax], '_'
+                .char_replace_done:
+
+                inc rax
+
+            jmp .replace_bad_characters
+            .bad_chars_replaced:
+
+            dec [file_upload_filename.len]
+
+            ; put 0 as last char
+            mov rax, file_upload_filename
+            add rax, [file_upload_filename.len]
+            mov byte [rax], 0
+
+        .not_found_file_upload_filename:
+
+    jmp read_rest_of_header.read_next_line
+    
+    read_rest_of_header.return:
+
+    print str_reading_header_done, str_reading_header_done.size
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+read_next_header_line:
+    
+    mov rax, header_line
+    push rax
+
+    mov [header_line.len], 0
+
+    net_recv_1B [connfd], tmp_1B_a
+    
+    read_next_header_line.loop:
+
+        net_recv_1B [connfd], tmp_1B_b
+
+        ; network error
+        cmp rax, 0
+        jl read_next_header_line.line_done
+
+        cmp [tmp_1B_b], 10 ; \n ; TODO IDEA (same goes for all such cases): mov ah, 10; mov al, 13; cmp ax, [tmp_2B]
+        jne read_next_header_line.read_next_byte
+        cmp [tmp_1B_a], 13 ; \r
+        jne read_next_header_line.read_next_byte
+
+        jmp read_next_header_line.line_done
+
+        read_next_header_line.read_next_byte:
+
+        pop rax
+        mov cl, [tmp_1B_a]
+        mov [rax], cl
+        inc rax
+        push rax
+
+        inc [header_line.len]
+
+        cmp [header_line.len], HEADER_LINE_MAXLEN
+        je read_next_header_line.cut_until_end_of_line
+
+        mov al, [tmp_1B_b]
+        mov [tmp_1B_a], al
+
+    jmp read_next_header_line.loop
+    
+    read_next_header_line.cut_until_end_of_line:
+
+        net_recv_1B [connfd], tmp_1B_b
+
+        ; network error
+        cmp rax, 0
+        jl read_next_header_line.line_done
+
+        cmp [tmp_1B_b], 10 ; \n
+        jne read_next_header_line.discard_next_byte
+        cmp [tmp_1B_a], 13 ; \r
+        jne read_next_header_line.discard_next_byte
+
+        jmp read_next_header_line.line_done
+
+        read_next_header_line.discard_next_byte:
+
+        mov al, [tmp_1B_b]
+        mov [tmp_1B_a], al
+
+    jmp read_next_header_line.cut_until_end_of_line
+
+    read_next_header_line.line_done:
+
+    pop rax
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+extract_header_field:
+; input:
+;   rdi - prefix
+;   rsi - prefix_len
+;   rdx - header_line
+;   r10 - header_line_len
+;   r8  - resulting_data - result will be written here (where this points)
+;   r9  - resulting_data_len - result will be written here (where this point)
+;
+; output:
+;   returns in rax
+;       1 if it was able to extract the header field
+;       0 if it was not
+
+; TODO push/pop modified regs
+
+    push r14
+    push r15
+
+    prefix equ rdi
+    prefix_len equ rsi
+    header_line equ [extract_header_field.stack.header_line]
+    header_line_len equ [extract_header_field.stack.header_line_len]
+    resulting_data equ r8
+    resulting_data_len equ r9
+
+    ; load artificial stack
+    mov header_line, rdx
+    mov header_line_len, r10
+
+    ; check for the multipart boundary
+
+    ; mov dl, prefix_len
+    mov r14, prefix_len
+
+    ; mov dh, header_line_len
+    mov r15, header_line_len
+
+    ; received line is too short
+    ; cmp dh, dl
+    cmp r15, r14
+    jle .return_fail
+
+    ; compare strings
+
+    mov rbx, header_line
+
+    .compare_next_char:
+
+        cmp r14, 0
+        je .found_boundary_line
+
+        ; read char from expected multipart
+        mov cl, [prefix]
+        inc prefix
+
+        ; read char from received line
+        mov ch, [rbx]
+        inc rbx
+
+        ; see if they're the same
+        cmp cl, ch
+        jne .return_fail
+
+        ; dec dl
+        dec r14
+
+    jmp .compare_next_char
+
+    .found_boundary_line:
+
+        ; mov dl, prefix_len
+        mov r14, prefix_len
+
+        ; mov dh, header_line_len
+        mov r15, header_line_len
+
+        ; sub dh, dl
+        sub r15, r14
+        mov rax, resulting_data_len
+        ; mov [rax], dh
+        mov [rax], r15
+
+        mov rax, resulting_data
+
+        .copy_boundary:
+
+            ; cmp dh, 0
+            cmp r15, 0
+            je .return_succ
+
+            ; copy
+            mov ch, [rbx]
+            inc rbx
+
+            mov [rax], ch
+            inc rax
+
+            ; dec dh
+            dec r15
+        
+        jmp .copy_boundary
+
+    .return_succ:
+        mov rax, 1
+        jmp .return
+
+    .return_fail:
+        mov rax, 0
+        jmp .return
+
+    .return:
+
+    pop r15
+    pop r14
+
+    restore prefix
+    restore prefix_len
+    restore header_line
+    restore header_line_len
+    restore resulting_data
+    restore resulting_data_len
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; data section
+
+segment readable writable
+
+;;;;;;;;;;;;;; includes
+
+include "util-data.inc"
+
+;;;;;;;;;;;;;; "generic" data
+
+str_nl db 10 ;; new line character
+str_nl.size = $ - str_nl
+
+one 4B 1
+sizeof_one = $ - one
+
+tmp_1B 1B 0
+tmp_1B.size = $ - tmp_1B
+
+tmp_1B_a 1B 0
+tmp_1B_a.size = $ - tmp_1B_a
+
+tmp_1B_b 1B 0
+tmp_1B_b.size = $ - tmp_1B_b
+
+tmp_4B 1B 0,0,0,0
+tmp_4B.size = $ - tmp_4B
+
+tmp_8B 8B 0
+tmp_8B.size = $ - tmp_8B
+
+tmp_8B_a 8B 0
+tmp_8B_a.size = $ - tmp_8B_a
+
+tmp_8B_b 8B 0
+tmp_8B_b.size = $ - tmp_8B_b
+
+tmp_8B_c 8B 0
+tmp_8B_c.size = $ - tmp_8B_c
+
+tmp_fd dq 0
+
+;;;;;;;;;;;;;; other data
+
+;;;;;;;; strings
+
+str_starting_program db "starting server"
+str_starting_program_len = $ - str_starting_program
+
+str_warn_folder_existance db "make sure that the following folder exists: "
+str_warn_folder_existance.size = $ - str_warn_folder_existance
+
+str_error_num_args db "you need to precify exactly 1 argument: port"
+str_error_num_args.size = $ - str_error_num_args
+
+
+str_http_header_begin db "HTTP/1.1 200 OK", 13, 10
+;                      db "Content-Type: text/html; charset=utf-8", 13, 10 ; this seems cool but it fucks with the file upload
+                      db "Connection: close", 13, 10
+str_http_header_begin.size = $ - str_http_header_begin
+
+str_http_header_begin_404 db "HTTP/1.1 404 Not Found", 13, 10
+                          db "Connection: close", 13, 10
+str_http_header_begin_404.size = $ - str_http_header_begin_404
+
+    str_http_header_attachment_begin db 'Content-disposition: attachment; filename='
+    str_http_header_attachment_begin.size = $ - str_http_header_attachment_begin
+
+    str_http_header_attachment_end db '"', 13, 10
+    str_http_header_attachment_end.size = $ - str_http_header_attachment_end
+
+str_http_header_end db 13, 10
+str_http_header_end.size = $ - str_http_header_end
+
+
+str_html_page_404 db "404", 10
+str_html_page_404.size = $ - str_html_page_404
+
+
+str_header_line_multipart_boundary db "Content-Type: multipart/form-data; boundary="
+str_header_line_multipart_boundary.size = $ - str_header_line_multipart_boundary
+
+str_header_line_file_upload_filename db 'Content-Disposition: form-data; name="file"; filename="'
+; Content-Disposition: form-data; name="file"; filename="somefilename"
+str_header_line_file_upload_filename.size = $ - str_header_line_file_upload_filename
+
+
+str_reading_header      1B "=============== read header begin"
+str_reading_header.size = $ - str_reading_header
+
+str_reading_header_done 1B "=============== read header end"
+str_reading_header_done.size = $ - str_reading_header_done
+
+
+str_sep db "++++++++++++"
+str_sep.size = $ - str_sep
+
+str_request_fulfilled db "request fullfilled"
+str_request_fulfilled.size = $ - str_request_fulfilled
+
+
+str_multipart_end db "--"
+str_multipart_end.size = $ - str_multipart_end
+
+
+;;;;;;;; other
+
+;; struct sockaddr_in {
+;;     sa_family_t    sin_family;  // 16 bits
+;;     in_port_t      sin_port;    // 16 bits
+;;     struct in_addr sin_addr;    // 32 bits
+;;     uint8_t        sin_zero[8]; // 64 bits
+;; }
+;;
+struc servaddr_in
+{
+    .sin_family dw 0
+    .sin_port   dw 0
+    .sin_addr   dd 0
+    .sin_zero   dq 0
+    .size = $ - .sin_family ;; this should be a comptime variable
+}
+
+sockfd dq -1
+
+connfd dq -1
+
+servaddr servaddr_in ;; OMT tova e kato `equ` i `=` (note that moje da dava6 parametri na taq struktura)
+
+cliaddr servaddr_in
+cliaddr_size dd servaddr.size
+
+
+method 1B 0
+
+header_line 1B 0
+rept (HEADER_LINE_MAXLEN-1) {
+       1B 0
+}
+header_line.len 8B 0
+
+url 1B 0
+rept (URL_MAXLEN) { ; add 1 extra character in case we need to add 0 (so it is a c string)
+       1B 0
+}
+url.len 8B 0
+
+
+; sex1 db "aaaaa"
+
+multipart_boundary_inc_nl_pref db 13, 10
+multipart_boundary_nl_pref.size = $ - multipart_boundary_inc_nl_pref
+multipart_boundary rb (HEADER_LINE_MAXLEN)
+multipart_boundary.len 8B 0
+
+; sex2 db "aaaaa"
+
+
+file_upload_filename 1B 0
+rept (HEADER_LINE_MAXLEN-1) {
+    1B 0
+}
+file_upload_filename.len 8B 0
+
+
+file_send_upload_fd dq -1
+
+folder_uploaded_files db "/var/tmp/file-transfer-uploaded-files", 0
+folder_uploaded_files.size = $ - folder_uploaded_files - 1
+folder_uploaded_files_fd dq 0
+
+folder_static_content db "./static-content", 0
+folder_static_content.size = $ - folder_static_content - 1
+folder_static_content_fd dq 0
+
+file_recv_buf        =   file_recv_buf.a
+    file_recv_buf.a      rb  HEADER_LINE_MAXLEN ; must be enough for `multipart_boundary`
+    file_recv_buf.a.size =   $ - file_recv_buf.a
+    file_recv_buf.b      rb  HEADER_LINE_MAXLEN ; must be enough for `multipart_boundary`
+    file_recv_buf.b.size =   $ - file_recv_buf.b
+file_recv_buf.size   =   $ - file_recv_buf
+file_recv_buf.free   8B  file_recv_buf.size
+file_recv_buf.start  8B  file_recv_buf
+
+
+; struct timeval {
+;    time_t      tv_sec;   // Number of whole seconds of elapsed time
+;    long int    tv_usec;  // Number of microseconds of rest of elapsed time minus tv_sec. Always less than one million
+; };
+;
+struc timeval {
+    .tv_sec  8B 0
+    .tv_usec 8B 0
+    .size = $ - .tv_sec
+}
+
+tmp_timeval timeval
+
+
+; struct linux_dirent {
+; 	unsigned long   d_ino;    // 8B
+; 	unsigned long   d_off;    // 8B
+; 	unsigned short  d_reclen; // 2B
+; 	char        d_name[];     // variable length
+; };
+;
+; struc linux_dirent {
+;     .d_ino    8B 0
+;     .d_off    8B 0
+;     .d_reclen 2B 0
+;     .d_name   db 0
+; rept (512-1) {
+;               db 0
+;     .size = $ - .d_ino
+; }
+; }
+;
+; linux_dirent_buf linux_dirent
+;
+linux_dirent_buf rb 512
+linux_dirent_buf.size = $ - linux_dirent_buf
+linux_dirent_buf.offset.d_reclen = 16
+linux_dirent_buf.offset.d_name = 18
+
+; read_dir_nread 4B 0
+read_dir_nread 8B 0
+
+; read_dir_bpos 4B 0
+read_dir_bpos 8B 0
+
+
+extract_header_field.stack.header_line     8B 0
+extract_header_field.stack.header_line_len 8B 0
+
+
+num_args 8B 0
+arg1     8B 0
+arg_port 2B 0

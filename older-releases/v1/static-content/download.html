@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet" href="style.css">
+    <title>Download</title>
+</head>
+
+<body id="body" class="wraper">
+    <h1 id="text_download_files">Download files</h1>
+    <!-- <div class="dw_wrapper">
+    <form action="/5~file~" method="post">
+        <button class="button_dw">asdsadsadsadsadsadsadsadsadsadasds</button>
+    </form>
+    </div> -->
+</body>
+
+<script src="/common.js"></script>
+<script>
+
+    ls(function(files){
+        let div = document.createElement("div");
+        div.className = "dw_wrap"
+
+        if(files.length == 0){
+            text_download_files.textContent += ' [no files found]'
+        }
+
+        files.forEach((file) => {
+            let form = document.createElement("form");
+            form.action = "/5" + file
+            form.method = "post"
+
+            let button = document.createElement("button")
+            button.textContent = file
+            button.className = "button_dw"
+            form.appendChild(button)
+
+            div.appendChild(form)
+        })
+
+        body.appendChild(div)
+    })
+
+</script>
+
+</html>

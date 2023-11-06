@@ -3,6 +3,13 @@
 
 ; TODO
 ;
+; add sleeps on IO operation so that 100% of the CPU is not use per client
+;
+; make the code as readable as possible
+; give 0 fucks about C calling conventions
+; give 1.6940658945086007e-21 fucks about performance
+; possibly write some of the code in C and call it from asm
+;
 ; use `jle` instead of `je` when comparing lengths
 ;
 ; create the `/tmp/...` folder

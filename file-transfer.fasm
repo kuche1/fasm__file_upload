@@ -12,10 +12,10 @@
 ; give 0 fucks about C calling conventions
 ; give 1.6940658945086007e-21 fucks about performance
 ; possibly write some of the code in C and call it from asm
+; update: during file upload the CPU usage is 100%
+; update: during file download CPU usage is about 5% (altho systime was 0 sec and I am using sendfile so there might be something wrong here)
 ;
 ; use `jle` instead of `je` when comparing lengths
-;
-; create the `/tmp/...` folder
 ;
 ; make macros hygenic (as in the push/pop their own registers)
 ; or go tell the caller to fuck off

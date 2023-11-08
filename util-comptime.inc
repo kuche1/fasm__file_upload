@@ -18,6 +18,10 @@ READ_1B_BUF.CACHE_SIZE equ 32 ; in bytes
 ; increasing this increases the end user upload speed (provided that his internet is good enough)
 ; at a rate of about 3MiB per double the size (so about 32/30MiB, 64/33MiB, 128/36MiB)
 
+
+replace_weird_characters.REPLACEMENT_CHAR equ '_'
+
+
 macro fnc1 name, arg1 {
     mov rdi, arg1
     call name

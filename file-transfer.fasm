@@ -3,6 +3,8 @@
 
 ; TODO
 ;
+; make it so that when you upload a file the end user gets a prompt that gives a link to the file
+;
 ; depricate all _init functions (ofc at the cost of some performance)
 ;
 ; add sleeps on IO operation so that 100% of the CPU is not use per client
@@ -805,32 +807,9 @@ read_rest_of_header:
             cmp [file_upload_filename.len], 0
             je .not_found_file_upload_filename
 
-            mov rax, file_upload_filename
-            .replace_bad_characters: ; HTML is retarded since it switches some of the characters for some retarded codes
-                                     ; we are going to avoid this altogether by replacing the bad characters beforehand
-                
-                cmp byte [rax], 0 ; end of string
-                je .bad_chars_replaced
-
-                ; replace ` ` with `_`
-                cmp byte [rax], ' '
-                je .replace_this_char
-                
-                cmp byte [rax], '"'
-                je .replace_this_char
-
-                cmp byte [rax], "'"
-                je .replace_this_char
-
-                jmp .char_replace_done
-                .replace_this_char:
-                    mov byte [rax], '_'
-                .char_replace_done:
-
-                inc rax
-
-            jmp .replace_bad_characters
-            .bad_chars_replaced:
+            ; HTML is retarded since it switches some of the characters for some retarded codes
+            ; we are going to avoid this altogether by replacing the bad characters beforehand
+            fnc1 replace_weird_characters_cstr, file_upload_filename
 
             dec [file_upload_filename.len]
 

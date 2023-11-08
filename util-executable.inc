@@ -345,6 +345,62 @@ read_buf:
     ret
 
 
+replace_weird_characters_cstr:
+; input:
+;   rax - ptr to cstr
+;
+; output:
+;   the string that rax points to will be modified
+;
+; trash:
+;   none
+;
+; replaces all weird characters in string
+; very useful in cases such as HTML fuckery
+
+    str_ptr equ rax
+    char equ bl
+        char_reg equ rbx
+
+    push str_ptr
+    push char_reg
+
+    .next_char:
+
+        mov char, [str_ptr]
+        cmp char, 0
+        je .return
+
+        ; TODO this sucks
+        ; replace it with something better at a later point
+        ; like a buffer that contains all of these and call something like str_find or something like that
+        cmp char, ' '
+        je .do_replace
+
+        cmp char, '"'
+        je .do_replace
+
+        cmp char, "'"
+        je .do_replace
+
+        jmp .next_char
+
+        .do_replace:
+            mov byte [str_ptr], replace_weird_characters.REPLACEMENT_CHAR
+
+    jmp .next_char
+
+    .return:
+
+    pop char_reg
+    pop str_ptr
+
+    restore str_ptr
+    restore char
+
+    ret
+
+
 send_file:
 ; input:
 ;   rdi - socket fd

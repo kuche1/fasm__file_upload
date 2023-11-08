@@ -383,6 +383,9 @@ replace_weird_characters_cstr:
         cmp byte char, "'"
         je .do_replace
 
+        cmp byte char, ','
+        je .do_replace
+
         jmp .char_is_good
             .do_replace:
                 mov byte [str_ptr], replace_weird_characters.REPLACEMENT_CHAR

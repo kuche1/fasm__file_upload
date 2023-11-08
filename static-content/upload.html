@@ -23,12 +23,21 @@
 </body>
 
 <script>
+	add_text_line = function(text, color='#ffffff') {
+		var output = document.createElement('input')
+		output.style = `color:${color}; border:none`
+		output.value = text
+		output.readOnly = true
+		form_file_upload.appendChild(output)
+	}
+
+
 	var upload_started_at = 0
 
 	btn_upload.onclick = function(event) {
       	event.preventDefault();
 
-		var xhr = new XMLHttpRequest();
+		var xhr = new XMLHttpRequest(); // DEBUG TODO REVERT
 
 		if (xhr.upload) {
 			xhr.upload.onprogress = function(event) {
@@ -64,6 +73,18 @@
 				if (xhr.status == 200) { // HTTP status 200 received
 					console.log('Upload completed!');
 					console.log('Response: ' + xhr.responseText);
+					// debug_xhr = xhr // debug
+
+					files_uploaded = xhr.statusText.split(',') // super hacky
+					files_uploaded.pop() // remove last item as it will be empty
+
+					add_text_line('Uploaded under the following names:', color='#ffffff')
+					files_uploaded.forEach((file) => {
+						// file = '/5' + file
+						// console.log('file: ' + file)
+						add_text_line(file, color='#00ffff')
+					})
+
                     btn_upload.textContent = "Upload Finished"
 				} else {
 					console.log('Upload error (status=' + xhr.status + ')');

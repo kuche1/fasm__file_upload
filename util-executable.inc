@@ -347,10 +347,10 @@ read_buf:
 
 replace_weird_characters_cstr:
 ; input:
-;   rax - ptr to cstr
+;   rdi - ptr to cstr
 ;
 ; output:
-;   the string that rax points to will be modified
+;   the string that rdi points to will be modified
 ;
 ; trash:
 ;   none
@@ -358,7 +358,7 @@ replace_weird_characters_cstr:
 ; replaces all weird characters in string
 ; very useful in cases such as HTML fuckery
 
-    str_ptr equ rax
+    str_ptr equ rdi
     char equ bl
         char_reg equ rbx
 
@@ -368,25 +368,27 @@ replace_weird_characters_cstr:
     .next_char:
 
         mov char, [str_ptr]
-        cmp char, 0
+        cmp byte char, 0
         je .return
 
         ; TODO this sucks
         ; replace it with something better at a later point
         ; like a buffer that contains all of these and call something like str_find or something like that
-        cmp char, ' '
+        cmp byte char, ' '
         je .do_replace
 
-        cmp char, '"'
+        cmp byte char, '"'
         je .do_replace
 
-        cmp char, "'"
+        cmp byte char, "'"
         je .do_replace
 
-        jmp .next_char
+        jmp .char_is_good
+            .do_replace:
+                mov byte [str_ptr], replace_weird_characters.REPLACEMENT_CHAR
+        .char_is_good:
 
-        .do_replace:
-            mov byte [str_ptr], replace_weird_characters.REPLACEMENT_CHAR
+        inc str_ptr
 
     jmp .next_char
 

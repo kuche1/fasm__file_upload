@@ -23,11 +23,16 @@
 </body>
 
 <script>
-	add_text_line = function(text, color='#ffffff') {
-		var output = document.createElement('input')
-		output.style = `color:${color}; border:none`
-		output.value = text
-		output.readOnly = true
+	add_text_line = function(text) {
+		// var output = document.createElement('input')
+		// output.style = `color:${color}; border:none`
+		// output.value = text
+		// output.readOnly = true
+		// form_file_upload.appendChild(output)
+
+		var output = document.createTextNode(text);
+		var nl = document.createElement('br')
+		form_file_upload.appendChild(nl)
 		form_file_upload.appendChild(output)
 	}
 
@@ -78,11 +83,11 @@
 					files_uploaded = xhr.statusText.split(',') // super hacky
 					files_uploaded.pop() // remove last item as it will be empty
 
-					add_text_line('Uploaded under the following names:', color='#ffffff')
+					add_text_line('File(s) uploaded under the following name(s):')
 					files_uploaded.forEach((file) => {
 						// file = '/5' + file
 						// console.log('file: ' + file)
-						add_text_line(file, color='#00ffff')
+						add_text_line(file)
 					})
 
                     btn_upload.textContent = "Upload Finished"

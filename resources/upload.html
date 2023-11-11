@@ -83,10 +83,11 @@
 					files_uploaded = xhr.statusText.split(',') // super hacky
 					files_uploaded.pop() // remove last item as it will be empty
 
-					add_text_line('File(s) uploaded under the following name(s):')
+					add_text_line('File(s) uploaded under the following link(s):')
 					files_uploaded.forEach((file) => {
 						// file = '/5' + file
-						// console.log('file: ' + file)
+						file = `${window.location.host}/dynamic/${file}`
+						console.log('file: ' + file)
 						add_text_line(file)
 					})
 

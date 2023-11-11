@@ -3,17 +3,10 @@
 
 ; TODO
 ;
-; make it so that when you upload a file the end user gets a prompt that gives a link to the file
-;
 ; depricate all _init functions (ofc at the cost of some performance)
 ;
 ; add sleeps on IO operation so that 100% of the CPU is not use per client
 ; no that the read might not be at fault here
-;
-; make the code as readable as possible
-; give 0 fucks about C calling conventions
-; give 1.6940658945086007e-21 fucks about performance
-; possibly write some of the code in C and call it from asm
 ; update: during file upload the CPU usage is 100%
 ; update: during file download CPU usage is about 5% (altho systime was 0 sec and I am using sendfile so there might be something wrong here)
 ;
@@ -1220,7 +1213,7 @@ file_upload_filename.len 8B 0
 file_send_upload_fd dq -1
 
 ; folder_uploaded_files db "/var/tmp/file-transfer-uploaded-files", 0
-folder_uploaded_files db "resources/dynamic", 0 ; this CAN be a symlink
+folder_uploaded_files db "resources/dynamic", 0
 folder_uploaded_files.size = $ - folder_uploaded_files - 1
 folder_uploaded_files_fd dq 0
 

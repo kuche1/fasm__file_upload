@@ -86,7 +86,7 @@
 					add_text_line('File(s) uploaded under the following link(s):')
 					files_uploaded.forEach((file) => {
 						// file = '/5' + file
-						file = `${window.location.host}/dynamic/${file}`
+						file = `${window.location.protocol}//${window.location.host}/dynamic/${file}`
 						console.log('file: ' + file)
 						add_text_line(file)
 					})

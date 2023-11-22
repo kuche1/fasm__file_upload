@@ -124,9 +124,9 @@ macro net_recv_1B fd, buf  {
 
 macro net_recv fd, buf, size {
     if NET_USE_CACHING
-        fnc3 read_buf, fd, buf, size ; cache version
+        fnc3 read_buf, fd, buf, size
     else
-        sys_read fd, buf, size       ; no cache version
+        sys_read fd, buf, size
     end if
 }
 

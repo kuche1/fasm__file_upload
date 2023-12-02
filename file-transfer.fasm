@@ -81,7 +81,7 @@ HEADER_LINE_MAXLEN equ 256 ; in bytes
         ; the file name will be shortened during it's creation and we will have enough
         ; mem to write the full (now shortened) filename when the file needs to be sent to the user
 CLIENT_UPLOAD_TIMEOUT_SEC equ 0
-CLIENT_UPLOAD_TIMEOUT_USEC equ 500_000 ; 1_000_000 is 1sec
+CLIENT_UPLOAD_TIMEOUT_USEC equ 800_000 ; 1_000_000 is 1sec
 CLIENT_DOWNLOAD_TIMEOUT_SEC equ CLIENT_UPLOAD_TIMEOUT_SEC
 CLIENT_DOWNLOAD_TIMEOUT_USEC equ CLIENT_UPLOAD_TIMEOUT_USEC
 NET_USE_CACHING equ 1 ; 1 for on; 0 for off

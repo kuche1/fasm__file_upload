@@ -1,5 +1,5 @@
 
-; fasm file-transfer.fasm && chmod +x file-transfer && ./file-transfer 6969
+; make -j && ./file-transfer 6969
 
 ; TODO
 ;

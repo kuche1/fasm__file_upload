@@ -22,6 +22,7 @@
     </div>
 </body>
 
+<script src="/common.js"></script>
 <script>
 	add_text_line = function(text) {
 		// var output = document.createElement('input')
@@ -42,7 +43,7 @@
 	btn_upload.onclick = function(event) {
       	event.preventDefault();
 
-		var xhr = new XMLHttpRequest(); // DEBUG TODO REVERT
+		var xhr = new XMLHttpRequest();
 
 		if (xhr.upload) {
 			xhr.upload.onprogress = function(event) {
@@ -83,14 +84,6 @@
 					files_uploaded = xhr.statusText.split(',') // super hacky
 					files_uploaded.pop() // remove last item as it will be empty
 
-					add_text_line('File(s) uploaded under the following link(s):')
-					files_uploaded.forEach((file) => {
-						// file = '/5' + file
-						file = `${window.location.protocol}//${window.location.host}/dynamic/${file}`
-						console.log('file: ' + file)
-						add_text_line(file)
-					})
-
                     btn_upload.textContent = "Upload Finished"
 				} else {
 					console.log('Upload error (status=' + xhr.status + ')');
@@ -114,6 +107,28 @@
         btn_upload.textContent = "Upload in Progress"
 
 		upload_started_at = (new Date).getTime()
+
+
+		////////////////////////////
+		// now get the supposed file names
+
+		add_text_line('File(s) will be available under the following link(s):')
+		
+		for(let idx=0; idx<inp_file.files.length; ++idx){
+			var file = inp_file.files[idx]
+			file = file.name
+
+			translate_name(
+				file,
+				function(file){
+					var file = `${window.location.protocol}//${window.location.host}/dynamic/${file}`
+					console.log('file: ' + file)
+					add_text_line(file)
+				}
+			)
+
+		}
+
 	};
 </script>
 

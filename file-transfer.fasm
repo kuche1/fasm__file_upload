@@ -426,7 +426,7 @@ handle_request_get:
 
 handle_request_post:
 
-    cmp byte [url+1], '4' ; skipping past the `/`
+    cmp byte [url+1], '4' ; `[url+1]` so that we skip past the `/`
     je .requested_script_file_upload
 
     cmp byte [url+1], '5'
@@ -434,6 +434,9 @@ handle_request_post:
 
     cmp byte [url+1], '6'
     je .requested_javascript_ls
+
+    cmp byte [url+1], '7'
+    je .requested_javascript_file_name_translation
 
     jmp .invalid_request
     
@@ -447,6 +450,16 @@ handle_request_post:
 
     .requested_javascript_ls:
         call handle_javascript_ls
+        jmp .return
+
+    .requested_javascript_file_name_translation:
+        mov [handle_javascript_file_name_translation.inp_cstr_ptr], url+2 ; skip the `/7`
+
+        mov rax, [url.len]
+        sub rax, 2
+        mov [handle_javascript_file_name_translation.inp_cstr_len], rax
+
+        call handle_javascript_file_name_translation ; note that this fnc might rewrite the URL
         jmp .return
 
     .invalid_request:
@@ -782,6 +795,20 @@ handle_javascript_ls:
     pop r15
 
     sys_lseek [folder_uploaded_files_fd], 0, SEEK_SET ; reset folder state
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;; fnc
+
+handle_javascript_file_name_translation:
+    ; TODO
+
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
+
+    fnc1 replace_weird_characters_cstr, [handle_javascript_file_name_translation.inp_cstr_ptr]
+
+    sys_write [connfd], [handle_javascript_file_name_translation.inp_cstr_ptr], [handle_javascript_file_name_translation.inp_cstr_len]
 
     ret
 
@@ -1292,3 +1319,8 @@ extract_header_field.stack.header_line_len 8B 0
 num_args 8B 0
 arg1     8B 0
 arg_port 2B 0
+
+
+
+handle_javascript_file_name_translation.inp_cstr_ptr 8B 0
+handle_javascript_file_name_translation.inp_cstr_len 8B 0

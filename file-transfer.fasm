@@ -473,7 +473,8 @@ handle_request_post:
 
 handle_script_file_upload:
 
-    sys_write [connfd], str_http_header_begin_fucky_including_file_name, str_http_header_begin_fucky_including_file_name.size
+    sys_write [connfd], str_http_header_begin, str_http_header_begin.size
+    sys_write [connfd], str_http_header_end, str_http_header_end.size
 
     call read_next_header_line
     ; result stored in `header_line` and is of length `[header_line.len]`
@@ -493,11 +494,6 @@ handle_script_file_upload:
     print str_sep, str_sep.size
     print file_upload_filename, [file_upload_filename.len]
     print str_sep, str_sep.size
-
-    ; send file name as part of http response code string
-    ; yes this is very much a hack
-    sys_write [connfd], file_upload_filename, [file_upload_filename.len]
-    sys_write [connfd], fucky_http_filename_send_sep, fucky_http_filename_send_sep.size
 
     fnc2 \
         open_file_write_at, \
@@ -623,10 +619,6 @@ handle_script_file_upload:
     ; sys_ftruncate [file_send_upload_fd], [tmp_8B]
 
     sys_close [file_send_upload_fd]
-
-    ; finish the http response
-    sys_write [connfd], str_http_header_begin_fucky_including_file_name_end, str_http_header_begin_fucky_including_file_name_end.size
-    sys_write [connfd], str_http_header_end, str_http_header_end.size
 
     ret
 
@@ -1134,16 +1126,6 @@ str_http_header_begin.size = $ - str_http_header_begin
 str_http_header_begin_404 db "HTTP/1.1 404 Not Found", 13, 10
                           db "Connection: close", 13, 10
 str_http_header_begin_404.size = $ - str_http_header_begin_404
-
-str_http_header_begin_fucky_including_file_name db "HTTP/1.1 200 "
-str_http_header_begin_fucky_including_file_name.size = $ - str_http_header_begin_fucky_including_file_name
-
-    str_http_header_begin_fucky_including_file_name_end db 13, 10
-    str_http_header_begin_fucky_including_file_name_end.size = $ - str_http_header_begin_fucky_including_file_name_end
-
-    ; NOTE THAT THIS NEEDS TO BE PRESENT IN THE `replace_weird_characters_cstr` FUNCTION
-    fucky_http_filename_send_sep db ','
-    fucky_http_filename_send_sep.size = $ - fucky_http_filename_send_sep
 
 str_http_header_attachment_begin db 'Content-disposition: attachment; filename='
 str_http_header_attachment_begin.size = $ - str_http_header_attachment_begin

@@ -84,6 +84,8 @@
 					files_uploaded = xhr.statusText.split(',') // super hacky
 					files_uploaded.pop() // remove last item as it will be empty
 
+					inp_file.disabled = true
+
                     btn_upload.textContent = "Upload Finished"
 				} else {
 					console.log('Upload error (status=' + xhr.status + ')');

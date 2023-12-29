@@ -1,24 +1,17 @@
 
-function ls(ls_callback){
-    const Http = new XMLHttpRequest(); // it sucks that it's an XMLHttp, should compensate for that on the back end
-    const url='/6';
-    Http.open("POST", url);
-    Http.send();
+async function ls(ls_callback){
 
-    Http.onreadystatechange = (event) => {
-        // console.log(event)
-        if (Http.readyState !== XMLHttpRequest.DONE) {
-            return
-        }
+    const response = await fetch(
+        '/6',
+        {method: "POST"},
+    )
 
-        let response = Http.responseText
-        // console.log(response)
+    let files = await response.text()
+    files = files.split('\n')
+    files = files.filter(n => n) // get rid of the empty line
+    // console.log(files)
 
-        files = response.split('\n') // split
-        files = files.filter(n => n) // get rid of empty line
-
-        ls_callback(files)
-    }
+    ls_callback(files)
 }
 
 function translate_name(name, callback){
